@@ -47,8 +47,82 @@
         </div>
         
         <form id="configForm" onsubmit="event.preventDefault();">
-          
-          <!-- Portfolio Type (For visual parity, Tickers is default) -->
+
+          <!-- ① 통계 및 위험 모델 설정 (FIRST) -->
+          <div class="section-title-small">📈 통계 및 위험 모델 설정</div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="historicalPeriod">과거 차트 분석 기간</label>
+              <select id="historicalPeriod">
+                <option value="1y">최근 1년</option>
+                <option value="2y">최근 2년</option>
+                <option value="3y">최근 3년</option>
+                <option value="4y">최근 4년</option>
+                <option value="5y">최근 5년</option>
+                <option value="6y">최근 6년</option>
+                <option value="7y">최근 7년</option>
+                <option value="8y">최근 8년</option>
+                <option value="9y">최근 9년</option>
+                <option value="10y" selected>최근 10년</option>
+                <option value="11y">최근 11년</option>
+                <option value="12y">최근 12년</option>
+                <option value="13y">최근 13년</option>
+                <option value="14y">최근 14년</option>
+                <option value="15y">최근 15년</option>
+                <option value="16y">최근 16년</option>
+                <option value="17y">최근 17년</option>
+                <option value="18y">최근 18년</option>
+                <option value="19y">최근 19년</option>
+                <option value="20y">최근 20년</option>
+                <option value="max">전체 기간 (Max)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="riskFreeRate">무위험 이자율 (Sharpe용)</label>
+              <div class="input-container input-with-suffix">
+                <input type="number" id="riskFreeRate" value="3.0" min="0" max="15" step="0.1">
+                <span class="suffix">%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="percentileIntervals">출력 백분위수 (쉼표 구분)</label>
+            <input type="text" id="percentileIntervals" value="5,10,20,30,50,75,95" placeholder="예: 5,10,25,50,75,95">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="simRunsCount">시뮬레이션 횟수</label>
+              <select id="simRunsCount">
+                <option value="500">500회</option>
+                <option value="1000" selected>1000회 (기본)</option>
+                <option value="2000">2000회</option>
+                <option value="5000">5000회</option>
+                <option value="10000">10000회</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="simulationModel">시뮬레이션 모델</label>
+              <select id="simulationModel">
+                <option value="statistical" selected>통계 기반 모델 (GBM)</option>
+                <option value="bootstrap">역사적 복원 추출 (Bootstrap)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ② 1단계 버튼 -->
+          <div style="margin-top: 0.5rem; margin-bottom: 1.75rem;">
+            <button type="button" id="btnCalibrate" class="btn btn-secondary" style="width: 100%; border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 700; font-size: 1rem; padding: 0.85rem;">
+              🔍 1단계: 과거 상수값 추출 및 보정
+            </button>
+          </div>
+
+          <!-- ③ 포트폴리오 시뮬레이션 설정 -->
+          <div class="section-title-small">🎲 몬테카를로 시뮬레이션 설정</div>
+
+          <!-- Portfolio Type -->
           <div class="form-group">
             <label for="portfolioType">포트폴리오 타입</label>
             <select id="portfolioType">
@@ -106,25 +180,37 @@
             <div class="form-group">
               <label for="inflationRate">예상 물가상승률 (연)</label>
               <div class="input-container input-with-suffix">
-                <input type="number" id="inflationRate" value="2.5" min="0" max="20" step="0.1">
+                <input type="number" id="inflationRate" value="7.0" min="0" max="20" step="0.1">
                 <span class="suffix">%</span>
               </div>
             </div>
           </div>
 
-          <!-- Simulation Period (Years) -->
+          <!-- Simulation Period & Rebalance -->
           <div class="form-row">
             <div class="form-group">
               <label for="simulationPeriod">시뮬레이션 기간 (년)</label>
               <select id="simulationPeriod">
                 <option value="1">1년</option>
+                <option value="2">2년</option>
                 <option value="3">3년</option>
-                <option value="5" selected>5년</option>
+                <option value="4">4년</option>
+                <option value="5">5년</option>
+                <option value="6">6년</option>
+                <option value="7">7년</option>
+                <option value="8">8년</option>
+                <option value="9">9년</option>
                 <option value="10">10년</option>
+                <option value="11">11년</option>
+                <option value="12">12년</option>
+                <option value="13">13년</option>
+                <option value="14">14년</option>
                 <option value="15">15년</option>
-                <option value="20">20년</option>
-                <option value="30">30년</option>
-                <option value="40">40년</option>
+                <option value="16">16년</option>
+                <option value="17">17년</option>
+                <option value="18">18년</option>
+                <option value="19">19년</option>
+                <option value="20" selected>20년</option>
               </select>
             </div>
             <div class="form-group">
@@ -138,55 +224,7 @@
             </div>
           </div>
 
-          <!-- Advanced Parameters -->
-          <div class="section-title-small">📈 통계 및 위험 모델 설정</div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="historicalPeriod">과거 차트 분석 기간</label>
-              <select id="historicalPeriod">
-                <option value="1y">최근 1년</option>
-                <option value="3y">최근 3년</option>
-                <option value="5y" selected>최근 5년</option>
-                <option value="10y">최근 10년</option>
-                <option value="max">전체 기간 (Max)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="riskFreeRate">무위험 이자율 (Sharpe용)</label>
-              <div class="input-container input-with-suffix">
-                <input type="number" id="riskFreeRate" value="3.0" min="0" max="15" step="0.1">
-                <span class="suffix">%</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="percentileIntervals">출력 백분위수 (쉼표 구분)</label>
-            <input type="text" id="percentileIntervals" value="5,10,15,20,25,50" placeholder="예: 5,10,25,50,75,95">
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="simRunsCount">시뮬레이션 횟수</label>
-              <select id="simRunsCount">
-                <option value="500">500회</option>
-                <option value="1000" selected>1000회 (기본)</option>
-                <option value="2000">2000회</option>
-                <option value="5000">5000회</option>
-                <option value="10000">10000회</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="simulationModel">시뮬레이션 모델</label>
-              <select id="simulationModel">
-                <option value="statistical" selected>통계 기반 모델 (GBM)</option>
-                <option value="bootstrap">역사적 복원 추출 (Bootstrap)</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Ticker Allocation Section -->
+          <!-- ④ Ticker Allocation Section -->
           <div class="section-title-small">🧩 포트폴리오 자산 비중</div>
           
           <div class="ticker-list" id="tickerListContainer">
@@ -208,12 +246,9 @@
             <div id="allocationProgressFill" class="allocation-progress-fill valid" style="width: 100%;"></div>
           </div>
 
-          <!-- Main Actions -->
-          <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
-            <button type="button" id="btnCalibrate" class="btn btn-secondary" style="border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 700;">
-              🔍 1단계: 과거 상수값 추출 및 보정
-            </button>
-            <button type="button" id="btnRunSimulation" class="btn btn-primary" disabled>
+          <!-- ⑤ 2단계 버튼 (LAST) -->
+          <div style="margin-top: 1.5rem;">
+            <button type="button" id="btnRunSimulation" class="btn btn-primary" disabled style="width: 100%; font-size: 1rem; padding: 0.85rem;">
               🚀 2단계: 몬테카를로 가격 예측 실행
             </button>
           </div>

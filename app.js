@@ -2,17 +2,19 @@
 
 // Default portfolio assets & weights requested by the user
 const DEFAULT_PORTFOLIO = [
-  { ticker: 'TQQQ', name: 'ProShares UltraPro QQQ (3x)', allocation: 35 },
-  { ticker: 'SOXL', name: 'Direxion Daily Semiconductor Bull 3x', allocation: 10 },
-  { ticker: 'BTC-USD', name: 'Bitcoin USD', allocation: 15 },
-  { ticker: 'TSLA', name: 'Tesla Inc.', allocation: 5 },
-  { ticker: 'AAPL', name: 'Apple Inc.', allocation: 5 },
-  { ticker: 'SCHD', name: 'Schwab US Dividend Equity ETF', allocation: 10 },
-  { ticker: 'JEPQ', name: 'JPMorgan Nasdaq Equity Premium ETF', allocation: 5 },
-  { ticker: 'QQQ', name: 'Invesco QQQ Trust', allocation: 5 },
-  { ticker: 'QLD', name: 'ProShares Ultra QQQ (2x)', allocation: 5 },
-  { ticker: 'SOXX', name: 'iShares Semiconductor ETF', allocation: 3 },
-  { ticker: 'USD', name: 'ProShares Ultra Semiconductors (2x)', allocation: 2 }
+  { ticker: 'QQQ',    name: 'Invesco QQQ Trust',                          allocation: 5  },
+  { ticker: 'QLD',    name: 'ProShares Ultra QQQ (2x)',                   allocation: 5  },
+  { ticker: 'TQQQ',   name: 'ProShares UltraPro QQQ (3x)',                allocation: 35 },
+  { ticker: 'SOXX',   name: 'iShares Semiconductor ETF',                  allocation: 3  },
+  { ticker: 'USD',    name: 'ProShares Ultra Semiconductors (2x)',         allocation: 2  },
+  { ticker: 'SOXL',   name: 'Direxion Daily Semiconductor Bull 3x',       allocation: 10 },
+  { ticker: 'BTC-USD',name: 'Bitcoin USD',                                allocation: 15 },
+  { ticker: 'TSLA',   name: 'Tesla Inc.',                                 allocation: 5  },
+  { ticker: 'AAPL',   name: 'Apple Inc.',                                 allocation: 5  },
+  { ticker: 'AAPU',   name: 'Direxion Daily AAPL Bull 1.5X Shares',       allocation: 0  },
+  { ticker: 'TSLL',   name: 'Direxion Daily TSLA Bull 2X Shares',         allocation: 0  },
+  { ticker: 'SCHD',   name: 'Schwab US Dividend Equity ETF',              allocation: 10 },
+  { ticker: 'JEPQ',   name: 'JPMorgan Nasdaq Equity Premium ETF',         allocation: 5  },
 ];
 
 // App State
@@ -263,14 +265,42 @@ function addTicker() {
   let ticker = elements.newTickerInput.value.trim().toUpperCase();
   if (!ticker) return;
   
+  // Known ticker name map
+  const knownNames = {
+    'QQQ':  'Invesco QQQ Trust',
+    'QLD':  'ProShares Ultra QQQ (2x)',
+    'TQQQ': 'ProShares UltraPro QQQ (3x)',
+    'SOXX': 'iShares Semiconductor ETF',
+    'USD':  'ProShares Ultra Semiconductors (2x)',
+    'SOXL': 'Direxion Daily Semiconductor Bull 3x',
+    'TSLA': 'Tesla Inc.',
+    'AAPL': 'Apple Inc.',
+    'AAPU': 'Direxion Daily AAPL Bull 1.5X Shares',
+    'TSLL': 'Direxion Daily TSLA Bull 2X Shares',
+    'SCHD': 'Schwab US Dividend Equity ETF',
+    'JEPQ': 'JPMorgan Nasdaq Equity Premium ETF',
+    'NVDA': 'NVIDIA Corporation',
+    'MSFT': 'Microsoft Corporation',
+    'AMZN': 'Amazon.com Inc.',
+    'GOOGL':'Alphabet Inc.',
+    'META': 'Meta Platforms Inc.',
+    'SPY':  'SPDR S&P 500 ETF Trust',
+    'VOO':  'Vanguard S&P 500 ETF',
+    'VTI':  'Vanguard Total Stock Market ETF',
+    'TLT':  'iShares 20+ Year Treasury Bond ETF',
+    'GLD':  'SPDR Gold Shares',
+  };
+
   // Format crypto tickers
   let apiTicker = ticker;
-  let tickerName = ticker + " Stock";
-  if (ticker === 'BTC' || ticker === 'ETH' || ticker === 'SOL') {
+  const cryptos = ['BTC', 'ETH', 'SOL', 'DOGE', 'XRP', 'ADA', 'AVAX', 'DOT', 'MATIC', 'LINK'];
+  if (cryptos.includes(ticker)) {
     apiTicker = ticker + '-USD';
-    tickerName = ticker + " Cryptocurrency";
-  } else if (ticker === 'USD') {
-    tickerName = "ProShares Ultra Semiconductors (2x)";
+  }
+
+  let tickerName = knownNames[ticker] || knownNames[apiTicker.replace('-USD', '')] || (ticker + ' Stock');
+  if (cryptos.includes(ticker)) {
+    tickerName = ticker + ' Cryptocurrency';
   }
   
   // Check duplicates
