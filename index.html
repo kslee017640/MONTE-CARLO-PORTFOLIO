@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="styles.css">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- TradingView Lightweight Charts for Candlestick visualization -->
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
@@ -406,6 +408,25 @@
 
     </div>
 
+  </div>
+
+  <!-- Ticker Candle Chart Modal -->
+  <div id="chartModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalChartTitle" style="font-family: var(--font-display); font-weight: 700; color: var(--color-text-primary);">AAPL 캔들 차트 (실제 데이터)</h3>
+        <button id="btnCloseModal" class="close-modal-btn">✕</button>
+      </div>
+      <div id="modalChartContainer" class="modal-chart-container">
+        <!-- TradingView Lightweight Chart canvas goes here -->
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.8rem; color: var(--color-text-muted);">
+          * 마우스 휠로 줌 인/아웃, 드래그로 스크롤 및 기간 조회가 가능합니다.
+        </span>
+        <button id="btnZoomOutModal" class="btn btn-secondary" style="width: auto; padding: 0.25rem 0.75rem; font-size: 0.8rem;">전체 보기</button>
+      </div>
+    </div>
   </div>
 
   <!-- Javascript Logic -->

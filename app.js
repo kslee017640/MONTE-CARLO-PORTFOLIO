@@ -91,7 +91,14 @@ const elements = {
   btnCancelManual: document.getElementById('btnCancelManual'),
   
   heatmapGrid: document.getElementById('heatmapGrid'),
-  heatmapLabels: document.getElementById('heatmapLabels')
+  heatmapLabels: document.getElementById('heatmapLabels'),
+
+  // Modal elements for Candlestick Charts
+  chartModal: document.getElementById('chartModal'),
+  modalChartTitle: document.getElementById('modalChartTitle'),
+  modalChartContainer: document.getElementById('modalChartContainer'),
+  btnCloseModal: document.getElementById('btnCloseModal'),
+  btnZoomOutModal: document.getElementById('btnZoomOutModal')
 };
 
 // Initialize App
@@ -121,6 +128,17 @@ window.addEventListener('DOMContentLoaded', () => {
   elements.btnDownloadCSV.addEventListener('click', downloadCSV);
   elements.btnDownloadJSON.addEventListener('click', downloadJSONState);
   
+  // Modal handlers
+  elements.btnCloseModal.addEventListener('click', closeModal);
+  elements.chartModal.addEventListener('click', (e) => {
+    if (e.target === elements.chartModal) closeModal();
+  });
+  elements.btnZoomOutModal.addEventListener('click', () => {
+    if (modalLightweightChartInstance) {
+      modalLightweightChartInstance.timeScale().fitContent();
+    }
+  });
+
   handleCashflowTypeChange();
 });
 
@@ -357,7 +375,7 @@ function showLoading(show, title = '', subtitle = '', isProgress = false) {
   }
 }
 
-// Fetch historical data for a ticker using CORS proxy
+// Fetch historical data for a ticker using CORS proxy (includes OHLC for candlestick charts)
 async function fetchTickerHistoricalData(ticker, period) {
   // Translate ticker names
   let apiTicker = ticker.trim().toUpperCase();
@@ -386,14 +404,32 @@ async function fetchTickerHistoricalData(ticker, period) {
       const timestamps = chart.timestamp || [];
       const quotes = chart.indicators?.quote?.[0] || {};
       const adjClose = chart.indicators?.adjclose?.[0]?.adjclose || quotes.close || [];
+      const opens = quotes.open || [];
+      const highs = quotes.high || [];
+      const lows = quotes.low || [];
+      const closes = quotes.close || [];
       
       const dates = [];
       const prices = [];
+      const ohlc = [];
       
       for (let j = 0; j < timestamps.length; j++) {
         if (adjClose[j] !== null && adjClose[j] !== undefined && !isNaN(adjClose[j])) {
-          dates.push(new Date(timestamps[j] * 1000).toISOString().split('T')[0]);
+          const dateStr = new Date(timestamps[j] * 1000).toISOString().split('T')[0];
+          dates.push(dateStr);
           prices.push(adjClose[j]);
+          
+          // Verify and save OHLC for candlestick chart
+          if (opens[j] !== null && highs[j] !== null && lows[j] !== null && closes[j] !== null &&
+              opens[j] !== undefined && highs[j] !== undefined && lows[j] !== undefined && closes[j] !== undefined) {
+            ohlc.push({
+              time: dateStr,
+              open: opens[j],
+              high: highs[j],
+              low: lows[j],
+              close: closes[j]
+            });
+          }
         }
       }
       
@@ -402,7 +438,7 @@ async function fetchTickerHistoricalData(ticker, period) {
       // Get shortName from metadata
       const shortName = chart.meta?.shortName || ticker;
       
-      return { ticker, dates, prices, shortName };
+      return { ticker, dates, prices, ohlc, shortName };
     } catch (e) {
       console.warn(`Proxy ${i} failed for ${ticker}: ${e.message}`);
       lastError = e;
@@ -448,7 +484,8 @@ async function calibrateParameters() {
     fetchedResults.forEach(res => {
       state.historicalPrices[res.ticker] = {
         dates: res.dates,
-        prices: res.prices
+        prices: res.prices,
+        ohlc: res.ohlc
       };
     });
     
@@ -666,13 +703,18 @@ function renderParametersTable() {
     const sharpeFormatted = params.sharpe.toFixed(2);
     
     row.innerHTML = `
-      <td class="ticker-symbol" style="color:var(--accent-cyan);">${displaySymbol}</td>
+      <td class="ticker-symbol" style="color:var(--accent-cyan); cursor:pointer; text-decoration:underline;" title="클릭하여 실제 캔들 차트 조회">${displaySymbol}</td>
       <td style="font-size:0.8rem; color:var(--color-text-secondary); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${asset.name}">${asset.name}</td>
       <td style="text-align: right; font-weight:600; color:var(--accent-emerald);">${cagrFormatted}</td>
       <td style="text-align: right; color:var(--color-text-secondary);">${volFormatted}</td>
       <td style="text-align: right; font-weight:500;">${sharpeFormatted}</td>
       <td style="text-align: right; font-weight:600; color:var(--accent-indigo);">${asset.allocation}%</td>
     `;
+    
+    // Add click handler to ticker cell for Candlestick Modal
+    row.querySelector('.ticker-symbol').addEventListener('click', () => {
+      showCandlestickChart(asset.ticker);
+    });
     
     elements.parametersTableBody.appendChild(row);
   });
@@ -1289,4 +1331,104 @@ function downloadJSONState() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+// Modal Candlestick Chart Variables
+let modalLightweightChartInstance = null;
+let modalCandleSeriesInstance = null;
+
+// Display Interactive TradingView Candlestick Chart Popup
+function showCandlestickChart(ticker) {
+  const data = state.historicalPrices[ticker];
+  if (!data || !data.ohlc || data.ohlc.length === 0) {
+    alert(`[${ticker.replace('-USD', '')}] 해당 분석 기간의 실제 캔들 데이터가 존재하지 않거나 수동 입력 모드입니다.`);
+    return;
+  }
+  
+  const asset = state.portfolio.find(a => a.ticker === ticker);
+  const displayName = asset ? asset.name : ticker;
+  elements.modalChartTitle.innerText = `${ticker.replace('-USD', '')} 과거 캔들 차트 (${displayName})`;
+  
+  // Clear previous contents
+  elements.modalChartContainer.innerHTML = '';
+  
+  // Display Modal
+  elements.chartModal.style.display = 'flex';
+  setTimeout(() => {
+    elements.chartModal.classList.add('active');
+  }, 10);
+  
+  // Create chart canvas inside container
+  const container = elements.modalChartContainer;
+  modalLightweightChartInstance = LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: 400,
+    layout: {
+      background: { type: 'solid', color: '#0f172a' },
+      textColor: '#cbd5e1',
+      fontSize: 12,
+      fontFamily: 'Plus Jakarta Sans, sans-serif'
+    },
+    grid: {
+      vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+      horzLines: { color: 'rgba(255, 255, 255, 0.05)' }
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+    },
+    rightPriceScale: {
+      borderColor: 'rgba(255, 255, 255, 0.12)',
+      textColor: '#cbd5e1',
+    },
+    timeScale: {
+      borderColor: 'rgba(255, 255, 255, 0.12)',
+      textColor: '#cbd5e1',
+      timeVisible: true,
+      secondsVisible: false
+    }
+  });
+  
+  // Add candle series
+  modalCandleSeriesInstance = modalLightweightChartInstance.addCandlestickSeries({
+    upColor: '#10b981',     // Green
+    downColor: '#f43f5e',   // Red
+    borderDownColor: '#f43f5e',
+    borderUpColor: '#10b981',
+    wickDownColor: '#f43f5e',
+    wickUpColor: '#10b981'
+  });
+  
+  modalCandleSeriesInstance.setData(data.ohlc);
+  
+  // Automatically fit content
+  modalLightweightChartInstance.timeScale().fitContent();
+  
+  // Window resize handler using ResizeObserver
+  const resizeObserver = new ResizeObserver(entries => {
+    if (entries.length === 0 || !modalLightweightChartInstance) return;
+    modalLightweightChartInstance.resize(container.clientWidth, 400);
+  });
+  resizeObserver.observe(container);
+  container.resizeObserver = resizeObserver;
+}
+
+// Close and Clean Up Modal
+function closeModal() {
+  elements.chartModal.classList.remove('active');
+  setTimeout(() => {
+    elements.chartModal.style.display = 'none';
+    
+    // Clean up observer
+    if (elements.modalChartContainer.resizeObserver) {
+      elements.modalChartContainer.resizeObserver.disconnect();
+      elements.modalChartContainer.resizeObserver = null;
+    }
+    
+    // Destroy instance
+    if (modalLightweightChartInstance) {
+      modalLightweightChartInstance = null;
+      modalCandleSeriesInstance = null;
+    }
+    elements.modalChartContainer.innerHTML = '';
+  }, 300);
 }
