@@ -30,6 +30,10 @@
       <div class="logo-section">
         <h1>Monte Carlo Portfolio Simulator</h1>
         <p>과거 데이터 기반 자산별 모수 추출 및 상관관계 반영 다차원 가격 예측 시뮬레이션</p>
+        <div class="app-meta">
+          <span>V1.0</span>
+          <span>Designed by KS with Codex</span>
+        </div>
       </div>
       <div class="header-actions">
         <button id="btnReset" class="btn btn-secondary" style="width: auto;">초기화</button>
@@ -90,11 +94,13 @@
             </select>
           </div>
 
-          <div style="margin-top: 1.25rem; margin-bottom: 1.75rem;">
+          <div id="calibrationActionBlock" style="margin-top: 1.25rem; margin-bottom: 1rem;">
             <button type="button" id="btnCalibrate" class="btn btn-secondary" style="border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 700;">
               1단계: 과거 상수값 추출 및 보정
             </button>
           </div>
+
+          <div id="calibrationResultSlot"></div>
 
           <div class="section-title-small">2단계 입력: 자금 흐름과 시뮬레이션</div>
 
@@ -143,7 +149,7 @@
             <div class="form-group">
               <label for="inflationRate">예상 물가상승률 (연)</label>
               <div class="input-container input-with-suffix">
-                <input type="number" id="inflationRate" value="2.5" min="0" max="20" step="0.1">
+                <input type="number" id="inflationRate" value="5.0" min="0" max="20" step="0.1">
                 <span class="suffix">%</span>
               </div>
             </div>

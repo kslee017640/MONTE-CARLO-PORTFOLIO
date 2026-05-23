@@ -97,6 +97,7 @@ const elements = {
   btnToggleManual: document.getElementById('btnToggleManual'),
   btnApplyManual: document.getElementById('btnApplyManual'),
   btnCancelManual: document.getElementById('btnCancelManual'),
+  calibrationResultSlot: document.getElementById('calibrationResultSlot'),
   
   heatmapGrid: document.getElementById('heatmapGrid'),
   heatmapLabels: document.getElementById('heatmapLabels'),
@@ -111,6 +112,7 @@ const elements = {
 
 // Initialize App
 window.addEventListener('DOMContentLoaded', () => {
+  moveCalibrationSectionIntoStepOne();
   renderTickers();
   updateAllocationTotal();
   initAllocationPieChart();
@@ -149,6 +151,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
   handleCashflowTypeChange();
 });
+
+function moveCalibrationSectionIntoStepOne() {
+  if (elements.calibrationResultSlot && elements.sectionCalibration) {
+    elements.calibrationResultSlot.appendChild(elements.sectionCalibration);
+  }
+}
 
 // Reset Portfolio
 function resetPortfolio() {
@@ -240,7 +248,7 @@ function renderTickers() {
     item.innerHTML = `
       <div style="display:flex; flex-direction:column; min-width:0;">
         <span class="ticker-symbol">${displaySymbol}</span>
-        <span style="font-size:0.75rem; color:var(--color-text-secondary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" title="${asset.name}${coverageTitle}">${asset.name}${coverage?.insufficient ? `<span class="coverage-note">최대 ${coverage.availableYears.toFixed(1)}년</span>` : ''}</span>
+        <span style="font-size:0.75rem; color:var(--color-text-secondary); overflow:hidden; line-height:1.35;" title="${asset.name}${coverageTitle}">${asset.name}${coverage?.insufficient ? `<span class="coverage-note">최대 ${coverage.availableYears.toFixed(1)}년 데이터</span>` : ''}</span>
       </div>
       <div class="input-container input-with-suffix">
         <input type="number" class="ticker-weight-input" data-index="${index}" value="${asset.allocation}" min="0" max="100" step="1">
@@ -753,7 +761,7 @@ function renderParametersTable() {
     
     row.innerHTML = `
       <td class="ticker-symbol" style="color:var(--accent-cyan); cursor:pointer; text-decoration:underline;" title="클릭하여 실제 캔들 차트 조회">${displaySymbol}</td>
-      <td style="font-size:0.8rem; color:var(--color-text-secondary); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${asset.name}${coverageNote}">${asset.name}${coverageNote ? `<span class="coverage-note">${coverageNote}</span>` : ''}</td>
+      <td style="font-size:0.8rem; color:var(--color-text-secondary); max-width:220px; overflow:hidden; line-height:1.35;" title="${asset.name}${coverageNote}">${asset.name}${coverageNote ? `<span class="coverage-note">${coverageNote.trim()}</span>` : ''}</td>
       <td style="text-align: right; font-weight:600; color:var(--accent-emerald);">${cagrFormatted}</td>
       <td style="text-align: right; color:var(--color-text-secondary);">${volFormatted}</td>
       <td style="text-align: right; font-weight:500;">${sharpeFormatted}</td>

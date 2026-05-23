@@ -108,6 +108,16 @@ header {
   margin-top: 0.25rem;
 }
 
+.app-meta {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .header-actions {
   display: flex;
   gap: 0.75rem;
@@ -726,9 +736,38 @@ tr:hover td {
 }
 
 .coverage-note {
+  display: block;
   color: var(--accent-amber);
   font-weight: 700;
-  margin-left: 0.25rem;
+  margin-top: 0.15rem;
+}
+
+#calibrationResultSlot #sectionCalibration {
+  margin-top: 1rem;
+  margin-bottom: 1.75rem;
+  padding: 1rem 0 0 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+#calibrationResultSlot .panel-header,
+#calibrationResultSlot .parameters-grid {
+  display: block;
+}
+
+#calibrationResultSlot .panel-header > div {
+  margin-bottom: 0.75rem;
+}
+
+#calibrationResultSlot .allocation-pie-wrapper {
+  height: 210px;
+}
+
+#calibrationResultSlot .heatmap-grid {
+  max-width: 320px;
+}
 }
 
 /* Results Performance Summary Custom styles */
