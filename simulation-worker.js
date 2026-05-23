@@ -126,12 +126,14 @@ self.onmessage = function(e) {
         maxDrawdownExCash = ddExCash;
       }
 
-      // Update SWR/PWR factors
-      const prev_x_t = x_t;
-      const prev_y_t = y_t;
-      x_t = prev_x_t * (1 + portfolioReturn);
-      const inflationFactor = inflationAdjusted ? Math.pow(1 + monthlyInflation, m - 1) : 1.0;
-      y_t = (prev_y_t - inflationFactor) * (1 + portfolioReturn);
+      // Update SWR/PWR factors (only meaningful for withdrawal scenarios)
+      if (cashflowType === 'withdraw' || cashflowType === 'none') {
+        const prev_x_t = x_t;
+        const prev_y_t = y_t;
+        x_t = prev_x_t * (1 + portfolioReturn);
+        const inflationFactor = inflationAdjusted ? Math.pow(1 + monthlyInflation, m - 1) : 1.0;
+        y_t = (prev_y_t - inflationFactor) * (1 + portfolioReturn);
+      }
 
       // Copy pre-cashflow values to active array
       for (let i = 0; i < numAssets; i++) {

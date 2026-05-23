@@ -631,7 +631,7 @@ tr:hover td {
 
 /* Shimmer Loading Overlay */
 .loading-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
@@ -643,7 +643,6 @@ tr:hover td {
   align-items: center;
   justify-content: center;
   z-index: 100;
-  border-radius: 16px;
   opacity: 0;
   pointer-events: none;
   transition: var(--transition-smooth);

@@ -920,8 +920,9 @@ function runMonteCarlo() {
   state.portfolio.forEach(asset => {
     const params = state.calibratedParams[asset.ticker];
     
-    // Scale returns: annual log return / 12
-    means.push(params.cagr / 12);
+    // Scale returns: annual CAGR → annual log return → monthly log drift
+    // Math.log(1 + cagr) converts simple return to log return
+    means.push(Math.log(1 + params.cagr) / 12);
     
     // Scale volatility: annual vol / sqrt(12)
     volatilities.push(params.volatility / Math.sqrt(12));
@@ -1360,11 +1361,10 @@ function showCandlestickChart(ticker) {
     elements.chartModal.classList.add('active');
     
     const container = elements.modalChartContainer;
-    const width = container.clientWidth > 0 ? container.clientWidth : 800; // robust fallback
     
-    // Create chart canvas inside container
+    // Create chart canvas inside container (autoSize handles responsive width)
     modalLightweightChartInstance = LightweightCharts.createChart(container, {
-      width: width,
+      autoSize: true,
       height: 400,
       layout: {
         background: { type: 'solid', color: '#0f172a' },
@@ -1417,13 +1417,7 @@ function showCandlestickChart(ticker) {
     // Automatically fit content
     modalLightweightChartInstance.timeScale().fitContent();
     
-    // Window resize handler using ResizeObserver
-    const resizeObserver = new ResizeObserver(entries => {
-      if (entries.length === 0 || !modalLightweightChartInstance) return;
-      modalLightweightChartInstance.resize(container.clientWidth, 400);
-    });
-    resizeObserver.observe(container);
-    container.resizeObserver = resizeObserver;
+    // autoSize:true already handles resize — no manual ResizeObserver needed
   }, 100);
 }
 
@@ -1433,14 +1427,15 @@ function closeModal() {
   setTimeout(() => {
     elements.chartModal.style.display = 'none';
     
-    // Clean up observer
+    // Clean up ResizeObserver
     if (elements.modalChartContainer.resizeObserver) {
       elements.modalChartContainer.resizeObserver.disconnect();
       elements.modalChartContainer.resizeObserver = null;
     }
     
-    // Destroy instance
+    // Properly destroy chart instance to prevent memory leak
     if (modalLightweightChartInstance) {
+      modalLightweightChartInstance.remove();  // ← 메모리 해제
       modalLightweightChartInstance = null;
       modalCandleSeriesInstance = null;
     }
