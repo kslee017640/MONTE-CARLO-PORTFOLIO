@@ -883,20 +883,37 @@ tr:hover td {
   max-width: 320px;
 }
 
-.metric-explainer {
-  display: grid;
-  gap: 0.4rem;
-  margin-top: 0.75rem;
+.panel-title-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.help-popover {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 2.1rem;
+  z-index: 30;
+  width: min(320px, calc(100vw - 3rem));
   padding: 0.85rem;
-  border: 1px solid rgba(99, 102, 241, 0.22);
+  border: 1px solid rgba(99, 102, 241, 0.3);
   border-radius: 6px;
-  background: rgba(99, 102, 241, 0.08);
+  background: #111827;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
   color: var(--color-text-secondary);
   font-size: 0.8rem;
   line-height: 1.55;
 }
 
-.metric-explainer strong {
+.help-popover.active {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.help-popover strong {
   color: var(--color-text-primary);
 }
 }

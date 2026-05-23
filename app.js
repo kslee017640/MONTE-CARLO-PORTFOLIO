@@ -165,9 +165,20 @@ function setupHelpToggles() {
     btn.addEventListener('click', () => {
       const target = document.getElementById(btn.dataset.helpTarget);
       if (!target) return;
+      const isPopover = target.classList.contains('help-popover');
+      if (isPopover) {
+        document.querySelectorAll('.help-popover.active').forEach(popover => {
+          if (popover !== target) popover.classList.remove('active');
+        });
+      }
       const isOpen = target.classList.toggle('active');
       btn.setAttribute('aria-expanded', String(isOpen));
     });
+  });
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('.help-btn') || event.target.closest('.help-popover')) return;
+    document.querySelectorAll('.help-popover.active').forEach(popover => popover.classList.remove('active'));
+    document.querySelectorAll('.help-btn[aria-expanded="true"]').forEach(btn => btn.setAttribute('aria-expanded', 'false'));
   });
 }
 
@@ -801,32 +812,44 @@ function renderCorrelationHeatmap() {
   elements.heatmapLabels.innerHTML = '';
   
   if (M === 0) return;
+
+  const visiblePortfolio = state.portfolio.filter(asset => state.calibratedParams[asset.ticker]);
+  const labels = visiblePortfolio.map(asset => asset.ticker.replace('-USD', ''));
+  const matrix = visiblePortfolio.map(asset => {
+    const sourceIndex = state.portfolio.findIndex(item => item.ticker === asset.ticker);
+    return visiblePortfolio.map(other => {
+      const targetIndex = state.portfolio.findIndex(item => item.ticker === other.ticker);
+      return state.correlationMatrix[sourceIndex]?.[targetIndex] ?? 0;
+    });
+  });
+  const N = labels.length;
+  if (N === 0) return;
   
   // Setup grid columns
-  elements.heatmapGrid.style.gridTemplateColumns = `minmax(48px, 0.75fr) repeat(${M}, minmax(42px, 1fr))`;
+  elements.heatmapGrid.style.gridTemplateColumns = `minmax(56px, 0.8fr) repeat(${N}, minmax(46px, 1fr))`;
   elements.heatmapGrid.classList.add('with-axis-labels');
 
   const corner = document.createElement('div');
   corner.className = 'heatmap-axis-corner';
   elements.heatmapGrid.appendChild(corner);
 
-  state.portfolio.forEach(asset => {
+  labels.forEach(ticker => {
     const label = document.createElement('div');
     label.className = 'heatmap-axis-label heatmap-axis-top';
-    label.innerText = asset.ticker.replace('-USD', '');
-    label.title = asset.ticker.replace('-USD', '');
+    label.innerText = ticker;
+    label.title = ticker;
     elements.heatmapGrid.appendChild(label);
   });
   
-  for (let i = 0; i < M; i++) {
+  for (let i = 0; i < N; i++) {
     const rowLabel = document.createElement('div');
     rowLabel.className = 'heatmap-axis-label heatmap-axis-left';
-    rowLabel.innerText = state.portfolio[i].ticker.replace('-USD', '');
-    rowLabel.title = state.portfolio[i].ticker.replace('-USD', '');
+    rowLabel.innerText = labels[i];
+    rowLabel.title = labels[i];
     elements.heatmapGrid.appendChild(rowLabel);
 
-    for (let j = 0; j < M; j++) {
-      const coef = state.correlationMatrix[i][j];
+    for (let j = 0; j < N; j++) {
+      const coef = matrix[i][j];
       const cell = document.createElement('div');
       cell.className = 'heatmap-cell';
       cell.innerText = coef.toFixed(2);
@@ -844,8 +867,8 @@ function renderCorrelationHeatmap() {
       
       cell.style.background = bgColor;
       
-      const t1 = state.portfolio[i].ticker.replace('-USD', '');
-      const t2 = state.portfolio[j].ticker.replace('-USD', '');
+      const t1 = labels[i];
+      const t2 = labels[j];
       cell.title = `${t1} & ${t2}: ${coef.toFixed(4)}`;
       
       elements.heatmapGrid.appendChild(cell);
