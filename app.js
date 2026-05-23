@@ -17,10 +17,14 @@ const DEFAULT_PORTFOLIO = [
   { ticker: 'JEPQ', name: 'JPMorgan Nasdaq Equity Premium ETF', allocation: 5 }
 ];
 
+// Approximate display-only FX rate for KRW summaries.
+const USD_KRW_RATE = 1520;
+
 // App State
 let state = {
   portfolio: [...DEFAULT_PORTFOLIO],
   historicalPrices: {}, // ticker -> { dates: [], prices: [] }
+  historicalCoverage: {}, // ticker -> { availableYears, requestedYears, insufficient }
   calibratedParams: {}, // ticker -> { cagr: num, vol: num, sharpe: num, startDate: str, endDate: str }
   correlationMatrix: [], // 2D array of correlation coefficients
   alignedDates: [],
@@ -167,6 +171,7 @@ function loadDefaults() {
 // Reset calibration and simulation state
 function resetCalibrationState() {
   state.historicalPrices = {};
+  state.historicalCoverage = {};
   state.calibratedParams = {};
   state.correlationMatrix = [];
   state.alignedDates = [];
@@ -227,12 +232,15 @@ function renderTickers() {
     item.className = 'ticker-item';
     
     // Display standard Ticker (stripping -USD for display clarity)
-    const displaySymbol = asset.ticker.endsWith('-USD') ? asset.ticker.replace('-USD', '') : asset.ticker;
+    const coverage = state.historicalCoverage[asset.ticker];
+    const displaySymbolBase = asset.ticker.endsWith('-USD') ? asset.ticker.replace('-USD', '') : asset.ticker;
+    const displaySymbol = displaySymbolBase + (coverage?.insufficient ? '*' : '');
+    const coverageTitle = coverage?.insufficient ? ` / 요청 기간보다 짧음: 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '';
     
     item.innerHTML = `
       <div style="display:flex; flex-direction:column; min-width:0;">
         <span class="ticker-symbol">${displaySymbol}</span>
-        <span style="font-size:0.75rem; color:var(--color-text-secondary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" title="${asset.name}">${asset.name}</span>
+        <span style="font-size:0.75rem; color:var(--color-text-secondary); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;" title="${asset.name}${coverageTitle}">${asset.name}${coverage?.insufficient ? `<span class="coverage-note">최대 ${coverage.availableYears.toFixed(1)}년</span>` : ''}</span>
       </div>
       <div class="input-container input-with-suffix">
         <input type="number" class="ticker-weight-input" data-index="${index}" value="${asset.allocation}" min="0" max="100" step="1">
@@ -394,7 +402,9 @@ async function fetchTickerHistoricalData(ticker, period) {
     url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
   ];
   
-  const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${apiTicker}?range=${period}&interval=1d`;
+  const requestedYears = period.endsWith('y') ? parseInt(period, 10) : null;
+  const requestRange = requestedYears && requestedYears > 10 ? 'max' : period;
+  const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${apiTicker}?range=${requestRange}&interval=1d`;
   
   let lastError = null;
   for (let i = 0; i < proxies.length; i++) {
@@ -415,36 +425,61 @@ async function fetchTickerHistoricalData(ticker, period) {
       const lows = quotes.low || [];
       const closes = quotes.close || [];
       
-      const dates = [];
-      const prices = [];
-      const ohlc = [];
+      const rawRows = [];
       
       for (let j = 0; j < timestamps.length; j++) {
         if (adjClose[j] !== null && adjClose[j] !== undefined && !isNaN(adjClose[j])) {
           const dateStr = new Date(timestamps[j] * 1000).toISOString().split('T')[0];
-          dates.push(dateStr);
-          prices.push(adjClose[j]);
+          const row = { date: dateStr, price: adjClose[j], ohlc: null };
           
           // Verify and save OHLC for candlestick chart
           if (opens[j] !== null && highs[j] !== null && lows[j] !== null && closes[j] !== null &&
               opens[j] !== undefined && highs[j] !== undefined && lows[j] !== undefined && closes[j] !== undefined) {
-            ohlc.push({
+            row.ohlc = {
               time: dateStr,
               open: opens[j],
               high: highs[j],
               low: lows[j],
               close: closes[j]
-            });
+            };
           }
+          rawRows.push(row);
         }
       }
       
-      if (prices.length === 0) throw new Error("No valid closing prices found");
+      if (rawRows.length === 0) throw new Error("No valid closing prices found");
+
+      rawRows.sort((a, b) => a.date.localeCompare(b.date));
+      const firstDate = rawRows[0].date;
+      const lastDate = rawRows[rawRows.length - 1].date;
+      const availableYears = Math.max(0, (new Date(lastDate) - new Date(firstDate)) / (1000 * 60 * 60 * 24 * 365.25));
+      const insufficient = requestedYears !== null && availableYears + 0.05 < requestedYears;
+      const cutoffDate = requestedYears && !insufficient
+        ? new Date(new Date(lastDate).setFullYear(new Date(lastDate).getFullYear() - requestedYears)).toISOString().split('T')[0]
+        : null;
+      const filteredRows = cutoffDate ? rawRows.filter(row => row.date >= cutoffDate) : rawRows;
+
+      const dates = filteredRows.map(row => row.date);
+      const prices = filteredRows.map(row => row.price);
+      const ohlc = filteredRows.filter(row => row.ohlc).map(row => row.ohlc);
       
       // Get shortName from metadata
       const shortName = chart.meta?.shortName || ticker;
       
-      return { ticker, dates, prices, ohlc, shortName };
+      return {
+        ticker,
+        dates,
+        prices,
+        ohlc,
+        shortName,
+        coverage: {
+          availableYears,
+          requestedYears,
+          insufficient,
+          firstDate,
+          lastDate
+        }
+      };
     } catch (e) {
       console.warn(`Proxy ${i} failed for ${ticker}: ${e.message}`);
       lastError = e;
@@ -487,12 +522,14 @@ async function calibrateParameters() {
     
     // Store in state
     state.historicalPrices = {};
+    state.historicalCoverage = {};
     fetchedResults.forEach(res => {
       state.historicalPrices[res.ticker] = {
         dates: res.dates,
         prices: res.prices,
         ohlc: res.ohlc
       };
+      state.historicalCoverage[res.ticker] = res.coverage;
     });
     
     // Align price dates across all assets (Common Period)
@@ -707,14 +744,16 @@ function renderParametersTable() {
     
     const row = document.createElement('tr');
     
-    const displaySymbol = asset.ticker.replace('-USD', '');
+    const coverage = state.historicalCoverage[asset.ticker];
+    const coverageNote = coverage?.insufficient ? ` * 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '';
+    const displaySymbol = asset.ticker.replace('-USD', '') + (coverage?.insufficient ? '*' : '');
     const cagrFormatted = (params.cagr * 100).toFixed(2) + '%';
     const volFormatted = (params.volatility * 100).toFixed(2) + '%';
     const sharpeFormatted = params.sharpe.toFixed(2);
     
     row.innerHTML = `
       <td class="ticker-symbol" style="color:var(--accent-cyan); cursor:pointer; text-decoration:underline;" title="클릭하여 실제 캔들 차트 조회">${displaySymbol}</td>
-      <td style="font-size:0.8rem; color:var(--color-text-secondary); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${asset.name}">${asset.name}</td>
+      <td style="font-size:0.8rem; color:var(--color-text-secondary); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${asset.name}${coverageNote}">${asset.name}${coverageNote ? `<span class="coverage-note">${coverageNote}</span>` : ''}</td>
       <td style="text-align: right; font-weight:600; color:var(--accent-emerald);">${cagrFormatted}</td>
       <td style="text-align: right; color:var(--color-text-secondary);">${volFormatted}</td>
       <td style="text-align: right; font-weight:500;">${sharpeFormatted}</td>
@@ -1047,6 +1086,11 @@ function fmtPct(val) {
 function fmtCurr(val) {
   return '$' + Math.round(val).toLocaleString();
 }
+function fmtCurrWithKrw(val) {
+  const usd = fmtCurr(val);
+  const krw = '₩' + Math.round(val * USD_KRW_RATE).toLocaleString('ko-KR');
+  return `${usd} (${krw})`;
+}
 function fmtNum(val) {
   return val.toFixed(2);
 }
@@ -1084,8 +1128,8 @@ function renderSummaryTable() {
   const metricsMap = [
     { label: "연평균 수익률 (TWRR nominal)", key: "twrrNominal", fmt: fmtPct },
     { label: "연평균 실질수익률 (TWRR real)", key: "twrrReal", fmt: fmtPct },
-    { label: "최종 명목 자산액 (Portfolio End nominal)", key: "finalBalanceNominal", fmt: fmtCurr },
-    { label: "최종 실질 자산액 (Portfolio End real)", key: "finalBalanceReal", fmt: fmtCurr },
+    { label: "최종 명목 자산액 (Portfolio End nominal)", key: "finalBalanceNominal", fmt: fmtCurrWithKrw },
+    { label: "최종 실질 자산액 (Portfolio End real)", key: "finalBalanceReal", fmt: fmtCurrWithKrw },
     { label: "연평균 단리수익률 (Nominal Mean)", key: "annualMeanReturn", fmt: fmtPct },
     { label: "연평균 변동성 (Annualized Volatility)", key: "annualVolatility", fmt: fmtPct },
     { label: "포트폴리오 샤프지수 (Sharpe Ratio)", key: "sharpe", fmt: fmtNum },
