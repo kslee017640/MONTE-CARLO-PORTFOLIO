@@ -37,7 +37,7 @@
         <h1>Monte Carlo Portfolio Simulator</h1>
         <p>과거 데이터 기반 자산별 모수 추출 및 상관관계 반영 다차원 가격 예측 시뮬레이션</p>
         <div class="app-meta">
-          <span>V1.1</span>
+          <span>V1.2</span>
           <span>Designed by KS with Codex</span>
         </div>
       </div>
@@ -368,8 +368,15 @@
               <h3 style="font-size: 0.95rem; font-family: var(--font-display); font-weight: 700; color: var(--color-text-secondary); margin-bottom: 0.75rem;">
                 시뮬레이션 기간별 자산 누적 가치 추이 (Percentile Paths)
               </h3>
-              <div class="chart-wrapper">
-                <canvas id="projectionLineChart"></canvas>
+              <div class="chart-scroll-frame">
+                <div class="chart-y-axis-fixed">
+                  <canvas id="projectionYAxisChart"></canvas>
+                </div>
+                <div class="chart-x-scroll">
+                  <div class="chart-scroll-inner">
+                    <canvas id="projectionLineChart"></canvas>
+                  </div>
+                </div>
               </div>
               <!-- Log / Inflation Toggles -->
               <div class="chart-controls">
@@ -404,7 +411,7 @@
             <p class="panel-subtitle" style="margin-bottom: 1rem;">
               각 하위/상위 성과 백분위별 연간 수익률, 최대 낙폭(MDD), 은퇴 인출 가능 금액(SWR) 통계입니다.
             </p>
-            <div class="parameters-table-container">
+            <div class="parameters-table-container summary-table-scroll">
               <table id="summaryTable" style="font-size: 0.85rem;">
                 <thead>
                   <tr id="summaryTableHeaderRow">

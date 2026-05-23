@@ -38,6 +38,7 @@ let state = {
 // Chart.js Instances
 let allocationPieChart = null;
 let projectionLineChart = null;
+let projectionYAxisChart = null;
 
 // DOM Elements
 const elements = {
@@ -224,6 +225,10 @@ function resetCalibrationState() {
   if (projectionLineChart) {
     projectionLineChart.destroy();
     projectionLineChart = null;
+  }
+  if (projectionYAxisChart) {
+    projectionYAxisChart.destroy();
+    projectionYAxisChart = null;
   }
 }
 
@@ -1108,8 +1113,19 @@ function fmtCurr(val) {
 }
 function fmtCurrWithKrw(val) {
   const usd = fmtCurr(val);
-  const krw = '₩' + Math.round(val * USD_KRW_RATE).toLocaleString('ko-KR');
+  const krw = formatKrwShort(val * USD_KRW_RATE);
   return `${usd} (${krw})`;
+}
+function formatKrwShort(krwValue) {
+  const value = Math.round(Math.abs(krwValue));
+  const sign = krwValue < 0 ? '-' : '';
+  const eok = Math.floor(value / 100000000);
+  const cheonman = Math.floor((value % 100000000) / 10000000);
+  if (eok > 0) {
+    return `${sign}₩${eok.toLocaleString('ko-KR')}억${cheonman > 0 ? ` ${cheonman}천만` : ''}`;
+  }
+  const man = Math.round(value / 10000);
+  return `${sign}₩${man.toLocaleString('ko-KR')}만`;
 }
 function fmtNum(val) {
   return val.toFixed(2);
@@ -1129,6 +1145,19 @@ function getPlotPercentiles(results) {
   const available = Object.keys(results.percentileTrajectoriesNominal || {}).map(Number);
   const plotList = preferred.filter(p => available.includes(p));
   return plotList.length > 0 ? plotList : available.sort((a, b) => a - b).slice(0, 7);
+}
+
+function getProjectionYBounds(trajectoryData, percentilesToPlot, logScale) {
+  const values = [];
+  percentilesToPlot.forEach(p => {
+    (trajectoryData[p] || []).forEach(val => {
+      if (Number.isFinite(val)) values.push(logScale && val <= 10 ? 10 : val);
+    });
+  });
+  if (values.length === 0) return {};
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return logScale ? { min: Math.max(10, min), max } : { min: Math.min(0, min), max };
 }
 
 // Render performance summary table (percentiles)
@@ -1297,6 +1326,7 @@ function updateProjectionChart() {
   const labels = Array.from({ length: years + 1 }, (_, y) => `Year ${y}`);
   
   const percentilesToPlot = getPlotPercentiles(results);
+  const yBounds = getProjectionYBounds(trajectoryData, percentilesToPlot, logScale);
   const colors = {
     5: 'rgba(244, 63, 94, 0.85)',   // Rose
     10: 'rgba(245, 158, 11, 0.85)',  // Amber
@@ -1325,6 +1355,9 @@ function updateProjectionChart() {
   if (projectionLineChart) {
     projectionLineChart.destroy();
   }
+  if (projectionYAxisChart) {
+    projectionYAxisChart.destroy();
+  }
   
   const ctx = document.getElementById('projectionLineChart').getContext('2d');
   projectionLineChart = new Chart(ctx, {
@@ -1336,6 +1369,8 @@ function updateProjectionChart() {
       scales: {
         y: {
           type: logScale ? 'logarithmic' : 'linear',
+          min: yBounds.min,
+          max: yBounds.max,
           title: {
             display: true,
             text: inflationAdjusted ? '실질 자산 가치 (Inflation Adjusted, $)' : '명목 자산 가치 (Nominal Portfolio Value, $)',
@@ -1343,7 +1378,7 @@ function updateProjectionChart() {
           },
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
           ticks: {
-            color: '#94a3b8',
+            display: false,
             callback: function(value) {
               return '$' + Math.round(value).toLocaleString();
             }
@@ -1370,6 +1405,51 @@ function updateProjectionChart() {
               return ` ${context.dataset.label}: $${Math.round(context.raw).toLocaleString()}`;
             }
           }
+        }
+      }
+    }
+  });
+
+  const yAxisCanvas = document.getElementById('projectionYAxisChart');
+  if (!yAxisCanvas) return;
+  projectionYAxisChart = new Chart(yAxisCanvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: trajectoryData[percentilesToPlot[0]] || [],
+        borderColor: 'transparent',
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      events: [],
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false }
+      },
+      scales: {
+        y: {
+          type: logScale ? 'logarithmic' : 'linear',
+          min: yBounds.min,
+          max: yBounds.max,
+          title: {
+            display: true,
+            text: inflationAdjusted ? '실질 자산 가치 ($)' : '명목 자산 가치 ($)',
+            color: '#94a3b8'
+          },
+          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          ticks: {
+            color: '#94a3b8',
+            callback: value => '$' + Math.round(value).toLocaleString()
+          }
+        },
+        x: {
+          display: false,
+          grid: { display: false }
         }
       }
     }

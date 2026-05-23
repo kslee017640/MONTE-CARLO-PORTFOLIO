@@ -665,6 +665,44 @@ tr:hover td {
   border: 1px solid var(--border-light);
 }
 
+.chart-scroll-frame {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  height: 400px;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.chart-y-axis-fixed {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  height: 400px;
+  background: #101827;
+  border-right: 1px solid var(--border-light);
+  padding: 1rem 0.15rem 1rem 0.35rem;
+}
+
+.chart-x-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.chart-scroll-inner {
+  height: 400px;
+  min-width: 760px;
+  padding: 1rem 1rem 1rem 0;
+}
+
+#projectionLineChart,
+#projectionYAxisChart {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .allocation-pie-wrapper {
   position: relative;
   height: 250px;
@@ -917,6 +955,30 @@ tr:hover td {
   font-size: 0.8rem;
   color: var(--color-text-muted);
   line-height: 1.5;
+}
+
+.summary-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.summary-table-scroll table {
+  min-width: 980px;
+}
+
+.summary-table-scroll th:first-child,
+.summary-table-scroll td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 190px;
+  max-width: 190px;
+  background: #101827;
+  box-shadow: 1px 0 0 var(--border-light);
+}
+
+.summary-table-scroll th:first-child {
+  z-index: 4;
 }
 
 /* Form Section titles */
