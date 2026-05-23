@@ -148,6 +148,7 @@ window.addEventListener('DOMContentLoaded', () => {
       modalLightweightChartInstance.timeScale().fitContent();
     }
   });
+  setupHelpToggles();
 
   handleCashflowTypeChange();
 });
@@ -156,6 +157,17 @@ function moveCalibrationSectionIntoStepOne() {
   if (elements.calibrationResultSlot && elements.sectionCalibration) {
     elements.calibrationResultSlot.appendChild(elements.sectionCalibration);
   }
+}
+
+function setupHelpToggles() {
+  document.querySelectorAll('.help-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.helpTarget);
+      if (!target) return;
+      const isOpen = target.classList.toggle('active');
+      btn.setAttribute('aria-expanded', String(isOpen));
+    });
+  });
 }
 
 // Reset Portfolio

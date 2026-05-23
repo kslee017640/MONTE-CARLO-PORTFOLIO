@@ -118,6 +118,51 @@ header {
   font-weight: 600;
 }
 
+.label-with-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.label-with-help label {
+  margin-bottom: 0;
+}
+
+.help-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--accent-cyan);
+  font-weight: 800;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.help-btn:hover,
+.help-btn[aria-expanded="true"] {
+  border-color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.12);
+}
+
+.help-text {
+  display: none;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(6, 182, 212, 0.22);
+  border-radius: 6px;
+  background: rgba(6, 182, 212, 0.08);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.help-text.active {
+  display: block;
+}
+
 .header-actions {
   display: flex;
   gap: 0.75rem;
@@ -767,6 +812,23 @@ tr:hover td {
 
 #calibrationResultSlot .heatmap-grid {
   max-width: 320px;
+}
+
+.metric-explainer {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.metric-explainer strong {
+  color: var(--color-text-primary);
 }
 }
 

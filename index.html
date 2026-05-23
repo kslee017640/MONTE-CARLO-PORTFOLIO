@@ -4,8 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portfolio Monte Carlo Simulation Dashboard</title>
+  <meta name="theme-color" content="#070913">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Monte Carlo">
   <!-- Tailwind is avoided as per guidelines; custom stylesheet used -->
   <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="app-icon.svg">
+  <link rel="apple-touch-icon" href="app-icon-180.png">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- TradingView Lightweight Charts for Candlestick visualization (v4.2.0 pinned - v5 broke addCandlestickSeries API) -->
@@ -31,7 +37,7 @@
         <h1>Monte Carlo Portfolio Simulator</h1>
         <p>과거 데이터 기반 자산별 모수 추출 및 상관관계 반영 다차원 가격 예측 시뮬레이션</p>
         <div class="app-meta">
-          <span>V1.0</span>
+          <span>V1.1</span>
           <span>Designed by KS with Codex</span>
         </div>
       </div>
@@ -183,7 +189,13 @@
           <div class="section-title-small">통계 및 위험 모델 설정</div>
 
           <div class="form-group">
-            <label for="riskFreeRate">무위험 이자율 (Sharpe용)</label>
+            <div class="label-with-help">
+              <label for="riskFreeRate">무위험 이자율 (Sharpe용)</label>
+              <button type="button" class="help-btn" aria-expanded="false" data-help-target="helpRiskFree">?</button>
+            </div>
+            <div id="helpRiskFree" class="help-text">
+              무위험 이자율은 거의 위험 없이 얻을 수 있다고 보는 기준 수익률입니다. 여기서는 샤프지수를 계산할 때 비교 기준으로만 쓰이며, 일반적으로 미국 국채 수익률 같은 값을 넣습니다.
+            </div>
             <div class="input-container input-with-suffix">
               <input type="number" id="riskFreeRate" value="3.0" min="0" max="15" step="0.1">
               <span class="suffix">%</span>
@@ -207,7 +219,13 @@
               </select>
             </div>
             <div class="form-group">
-              <label for="simulationModel">시뮬레이션 모델</label>
+              <div class="label-with-help">
+                <label for="simulationModel">시뮬레이션 모델</label>
+                <button type="button" class="help-btn" aria-expanded="false" data-help-target="helpSimulationModel">?</button>
+              </div>
+              <div id="helpSimulationModel" class="help-text">
+                GBM은 CAGR, 변동성, 상관관계를 이용해 정규분포 기반의 미래 경로를 새로 만드는 방식입니다. Bootstrap은 과거 일간 수익률을 복원추출해서 과거에 실제로 나타난 움직임을 섞어 미래 경로를 만드는 방식입니다.
+              </div>
               <select id="simulationModel">
                 <option value="statistical" selected>통계 기반 모델 (GBM)</option>
                 <option value="bootstrap">역사적 복원 추출 (Bootstrap)</option>
@@ -246,6 +264,10 @@
             <div>
               <h2 class="panel-title">1단계: 자산별 과거 통계 상수값 및 비중</h2>
               <p class="panel-subtitle">선택한 기간 동안의 실제 종가 데이터를 바탕으로 추출한 연간 수익률, 변동성, 샤프지수입니다.</p>
+              <div class="metric-explainer">
+                <strong>이 값들이 시뮬레이션에 쓰이는 방식</strong>
+                <span>GBM 모델은 CAGR을 기대 성장률로, 변동성을 가격 흔들림 폭으로, 자산 간 상관관계를 동시 움직임으로 사용합니다. 샤프지수는 위험 대비 성과를 보여주는 참고 지표이며 시뮬레이션 경로 생성에는 직접 쓰이지 않습니다. Bootstrap 모델은 CAGR/변동성 대신 과거 일간 수익률 표본을 직접 재사용합니다.</span>
+              </div>
             </div>
             <button id="btnToggleManual" class="btn btn-secondary" style="width: auto; font-size: 0.8rem; padding: 0.5rem 0.75rem;">
               값 직접 수정 (수동)
