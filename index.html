@@ -48,7 +48,8 @@
         
         <form id="configForm" onsubmit="event.preventDefault();">
           
-          <!-- Portfolio Type (For visual parity, Tickers is default) -->
+          <div class="section-title-small">1단계 입력: 티커와 과거 데이터</div>
+
           <div class="form-group">
             <label for="portfolioType">포트폴리오 타입</label>
             <select id="portfolioType">
@@ -57,7 +58,44 @@
             </select>
           </div>
 
-          <!-- Initial Amount -->
+          <div class="section-title-small">포트폴리오 자산 비중</div>
+          
+          <div class="ticker-list" id="tickerListContainer">
+            <!-- Dynamically populated tickers go here -->
+          </div>
+
+          <div class="add-ticker-section">
+            <input type="text" id="newTickerInput" placeholder="AAPL 또는 BTC" style="text-transform: uppercase;">
+            <button type="button" id="btnAddTicker" class="btn btn-secondary" style="padding: 0.5rem;">추가</button>
+          </div>
+
+          <div id="allocationTotalBar" class="allocation-total-bar valid">
+            <span>합계 비중:</span>
+            <strong id="allocationTotalVal">100%</strong>
+          </div>
+          <div class="allocation-progress-wrapper">
+            <div id="allocationProgressFill" class="allocation-progress-fill valid" style="width: 100%;"></div>
+          </div>
+
+          <div class="form-group" style="margin-top: 1.25rem;">
+            <label for="historicalPeriod">과거 차트 분석 기간</label>
+            <select id="historicalPeriod">
+              <option value="1y">최근 1년</option>
+              <option value="3y">최근 3년</option>
+              <option value="5y" selected>최근 5년</option>
+              <option value="10y">최근 10년</option>
+              <option value="max">전체 기간 (Max)</option>
+            </select>
+          </div>
+
+          <div style="margin-top: 1.25rem; margin-bottom: 1.75rem;">
+            <button type="button" id="btnCalibrate" class="btn btn-secondary" style="border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 700;">
+              1단계: 과거 상수값 추출 및 보정
+            </button>
+          </div>
+
+          <div class="section-title-small">2단계 입력: 자금 흐름과 시뮬레이션</div>
+
           <div class="form-group">
             <label for="initialAmount">초기 자산액 (Initial Amount)</label>
             <div class="input-container input-with-suffix">
@@ -66,7 +104,6 @@
             </div>
           </div>
 
-          <!-- Cashflow Type -->
           <div class="form-group">
             <label for="cashflowType">주기적 현금흐름 (Cashflows)</label>
             <select id="cashflowType">
@@ -76,7 +113,6 @@
             </select>
           </div>
 
-          <!-- Cashflow Amount & Frequency Row -->
           <div class="form-row">
             <div class="form-group">
               <label id="cashflowAmountLabel" for="cashflowAmount">납입/인출액</label>
@@ -94,7 +130,6 @@
             </div>
           </div>
 
-          <!-- Inflation Adjusted & Rate -->
           <div class="form-row">
             <div class="form-group">
               <label for="inflationAdjusted">물가상승률 반영 여부</label>
@@ -112,16 +147,15 @@
             </div>
           </div>
 
-          <!-- Simulation Period (Years) -->
           <div class="form-row">
             <div class="form-group">
               <label for="simulationPeriod">시뮬레이션 기간 (년)</label>
               <select id="simulationPeriod">
                 <option value="1">1년</option>
                 <option value="3">3년</option>
-                <option value="5" selected>5년</option>
+                <option value="5">5년</option>
                 <option value="10">10년</option>
-                <option value="15">15년</option>
+                <option value="15" selected>15년</option>
                 <option value="20">20년</option>
                 <option value="30">30년</option>
                 <option value="40">40년</option>
@@ -138,32 +172,19 @@
             </div>
           </div>
 
-          <!-- Advanced Parameters -->
           <div class="section-title-small">통계 및 위험 모델 설정</div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="historicalPeriod">과거 차트 분석 기간</label>
-              <select id="historicalPeriod">
-                <option value="1y">최근 1년</option>
-                <option value="3y">최근 3년</option>
-                <option value="5y" selected>최근 5년</option>
-                <option value="10y">최근 10년</option>
-                <option value="max">전체 기간 (Max)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="riskFreeRate">무위험 이자율 (Sharpe용)</label>
-              <div class="input-container input-with-suffix">
-                <input type="number" id="riskFreeRate" value="3.0" min="0" max="15" step="0.1">
-                <span class="suffix">%</span>
-              </div>
+          <div class="form-group">
+            <label for="riskFreeRate">무위험 이자율 (Sharpe용)</label>
+            <div class="input-container input-with-suffix">
+              <input type="number" id="riskFreeRate" value="3.0" min="0" max="15" step="0.1">
+              <span class="suffix">%</span>
             </div>
           </div>
 
           <div class="form-group">
             <label for="percentileIntervals">출력 백분위수 (쉼표 구분)</label>
-            <input type="text" id="percentileIntervals" value="5,10,15,20,25,50" placeholder="예: 5,10,25,50,75,95">
+            <input type="text" id="percentileIntervals" value="5,10,20,30,50,75,95" placeholder="예: 5,10,20,30,50,75,95">
           </div>
 
           <div class="form-row">
@@ -186,33 +207,7 @@
             </div>
           </div>
 
-          <!-- Ticker Allocation Section -->
-          <div class="section-title-small">🧩 포트폴리오 자산 비중</div>
-          
-          <div class="ticker-list" id="tickerListContainer">
-            <!-- Dynamically populated tickers go here -->
-          </div>
-
-          <!-- Add Ticker Form -->
-          <div class="add-ticker-section">
-            <input type="text" id="newTickerInput" placeholder="AAPL 또는 BTC" style="text-transform: uppercase;">
-            <button type="button" id="btnAddTicker" class="btn btn-secondary" style="padding: 0.5rem;">추가</button>
-          </div>
-
-          <!-- Total Allocation Bar -->
-          <div id="allocationTotalBar" class="allocation-total-bar valid">
-            <span>합계 비중:</span>
-            <strong id="allocationTotalVal">100%</strong>
-          </div>
-          <div class="allocation-progress-wrapper">
-            <div id="allocationProgressFill" class="allocation-progress-fill valid" style="width: 100%;"></div>
-          </div>
-
-          <!-- Main Actions -->
-          <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
-            <button type="button" id="btnCalibrate" class="btn btn-secondary" style="border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 700;">
-              1단계: 과거 상수값 추출 및 보정
-            </button>
+          <div style="margin-top: 1.5rem;">
             <button type="button" id="btnRunSimulation" class="btn btn-primary" disabled>
               2단계: 몬테카를로 가격 예측 실행
             </button>

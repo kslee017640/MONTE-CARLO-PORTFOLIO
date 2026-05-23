@@ -2,17 +2,19 @@
 
 // Default portfolio assets & weights requested by the user
 const DEFAULT_PORTFOLIO = [
-  { ticker: 'TQQQ', name: 'ProShares UltraPro QQQ (3x)', allocation: 35 },
-  { ticker: 'SOXL', name: 'Direxion Daily Semiconductor Bull 3x', allocation: 10 },
-  { ticker: 'BTC-USD', name: 'Bitcoin USD', allocation: 15 },
-  { ticker: 'TSLA', name: 'Tesla Inc.', allocation: 5 },
-  { ticker: 'AAPL', name: 'Apple Inc.', allocation: 5 },
-  { ticker: 'SCHD', name: 'Schwab US Dividend Equity ETF', allocation: 10 },
-  { ticker: 'JEPQ', name: 'JPMorgan Nasdaq Equity Premium ETF', allocation: 5 },
   { ticker: 'QQQ', name: 'Invesco QQQ Trust', allocation: 5 },
   { ticker: 'QLD', name: 'ProShares Ultra QQQ (2x)', allocation: 5 },
+  { ticker: 'TQQQ', name: 'ProShares UltraPro QQQ (3x)', allocation: 35 },
   { ticker: 'SOXX', name: 'iShares Semiconductor ETF', allocation: 3 },
-  { ticker: 'USD', name: 'ProShares Ultra Semiconductors (2x)', allocation: 2 }
+  { ticker: 'USD', name: 'ProShares Ultra Semiconductors (2x)', allocation: 2 },
+  { ticker: 'SOXL', name: 'Direxion Daily Semiconductor Bull 3x', allocation: 10 },
+  { ticker: 'BTC-USD', name: 'Bitcoin USD', allocation: 15 },
+  { ticker: 'AAPL', name: 'Apple Inc.', allocation: 5 },
+  { ticker: 'AAPU', name: 'Direxion Daily AAPL Bull 2X Shares', allocation: 0 },
+  { ticker: 'TSLA', name: 'Tesla Inc.', allocation: 5 },
+  { ticker: 'TSLL', name: 'Direxion Daily TSLA Bull 2X Shares', allocation: 0 },
+  { ticker: 'SCHD', name: 'Schwab US Dividend Equity ETF', allocation: 10 },
+  { ticker: 'JEPQ', name: 'JPMorgan Nasdaq Equity Premium ETF', allocation: 5 }
 ];
 
 // App State
