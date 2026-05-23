@@ -1354,62 +1354,77 @@ function showCandlestickChart(ticker) {
   
   // Display Modal
   elements.chartModal.style.display = 'flex';
+  
+  // Wait for the modal display to apply in browser layout so clientWidth is non-zero
   setTimeout(() => {
     elements.chartModal.classList.add('active');
-  }, 10);
-  
-  // Create chart canvas inside container
-  const container = elements.modalChartContainer;
-  modalLightweightChartInstance = LightweightCharts.createChart(container, {
-    width: container.clientWidth,
-    height: 400,
-    layout: {
-      background: { type: 'solid', color: '#0f172a' },
-      textColor: '#cbd5e1',
-      fontSize: 12,
-      fontFamily: 'Plus Jakarta Sans, sans-serif'
-    },
-    grid: {
-      vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
-      horzLines: { color: 'rgba(255, 255, 255, 0.05)' }
-    },
-    crosshair: {
-      mode: LightweightCharts.CrosshairMode.Normal,
-    },
-    rightPriceScale: {
-      borderColor: 'rgba(255, 255, 255, 0.12)',
-      textColor: '#cbd5e1',
-    },
-    timeScale: {
-      borderColor: 'rgba(255, 255, 255, 0.12)',
-      textColor: '#cbd5e1',
-      timeVisible: true,
-      secondsVisible: false
-    }
-  });
-  
-  // Add candle series
-  modalCandleSeriesInstance = modalLightweightChartInstance.addCandlestickSeries({
-    upColor: '#10b981',     // Green
-    downColor: '#f43f5e',   // Red
-    borderDownColor: '#f43f5e',
-    borderUpColor: '#10b981',
-    wickDownColor: '#f43f5e',
-    wickUpColor: '#10b981'
-  });
-  
-  modalCandleSeriesInstance.setData(data.ohlc);
-  
-  // Automatically fit content
-  modalLightweightChartInstance.timeScale().fitContent();
-  
-  // Window resize handler using ResizeObserver
-  const resizeObserver = new ResizeObserver(entries => {
-    if (entries.length === 0 || !modalLightweightChartInstance) return;
-    modalLightweightChartInstance.resize(container.clientWidth, 400);
-  });
-  resizeObserver.observe(container);
-  container.resizeObserver = resizeObserver;
+    
+    const container = elements.modalChartContainer;
+    const width = container.clientWidth > 0 ? container.clientWidth : 800; // robust fallback
+    
+    // Create chart canvas inside container
+    modalLightweightChartInstance = LightweightCharts.createChart(container, {
+      width: width,
+      height: 400,
+      layout: {
+        background: { type: 'solid', color: '#0f172a' },
+        textColor: '#cbd5e1',
+        fontSize: 12,
+        fontFamily: 'Plus Jakarta Sans, sans-serif'
+      },
+      grid: {
+        vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.05)' }
+      },
+      crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(255, 255, 255, 0.12)',
+        textColor: '#cbd5e1',
+      },
+      timeScale: {
+        borderColor: 'rgba(255, 255, 255, 0.12)',
+        textColor: '#cbd5e1',
+        timeVisible: true,
+        secondsVisible: false
+      }
+    });
+    
+    // Add candle series
+    modalCandleSeriesInstance = modalLightweightChartInstance.addCandlestickSeries({
+      upColor: '#10b981',     // Green
+      downColor: '#f43f5e',   // Red
+      borderDownColor: '#f43f5e',
+      borderUpColor: '#10b981',
+      wickDownColor: '#f43f5e',
+      wickUpColor: '#10b981'
+    });
+    
+    // Safe-guard data sorting and deduplication (critical for Lightweight Charts)
+    const seenDates = new Set();
+    const uniqueOhlc = [];
+    data.ohlc.forEach(item => {
+      if (!seenDates.has(item.time)) {
+        seenDates.add(item.time);
+        uniqueOhlc.push(item);
+      }
+    });
+    uniqueOhlc.sort((a, b) => a.time.localeCompare(b.time));
+    
+    modalCandleSeriesInstance.setData(uniqueOhlc);
+    
+    // Automatically fit content
+    modalLightweightChartInstance.timeScale().fitContent();
+    
+    // Window resize handler using ResizeObserver
+    const resizeObserver = new ResizeObserver(entries => {
+      if (entries.length === 0 || !modalLightweightChartInstance) return;
+      modalLightweightChartInstance.resize(container.clientWidth, 400);
+    });
+    resizeObserver.observe(container);
+    container.resizeObserver = resizeObserver;
+  }, 100);
 }
 
 // Close and Clean Up Modal
