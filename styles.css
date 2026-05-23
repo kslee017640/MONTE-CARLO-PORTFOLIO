@@ -610,6 +610,7 @@ tr:hover td {
   align-items: center;
   justify-content: center;
   width: 100%;
+  overflow-x: auto;
 }
 
 .heatmap-grid {
@@ -618,8 +619,36 @@ tr:hover td {
   overflow: hidden;
   border: 1px solid var(--border-light);
   width: 100%;
-  max-width: 400px;
-  aspect-ratio: 1;
+  max-width: 720px;
+  min-width: 520px;
+}
+
+.heatmap-axis-corner,
+.heatmap-axis-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0.25rem;
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--color-text-secondary);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.heatmap-axis-left {
+  justify-content: flex-end;
+  padding-right: 0.45rem;
+  color: var(--accent-cyan);
+}
+
+.heatmap-axis-top {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: var(--accent-cyan);
 }
 
 .heatmap-cell {
@@ -633,6 +662,8 @@ tr:hover td {
   cursor: pointer;
   position: relative;
   transition: var(--transition-smooth);
+  min-height: 38px;
+  aspect-ratio: 1;
 }
 
 .heatmap-cell:hover {

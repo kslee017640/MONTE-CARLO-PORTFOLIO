@@ -803,9 +803,28 @@ function renderCorrelationHeatmap() {
   if (M === 0) return;
   
   // Setup grid columns
-  elements.heatmapGrid.style.gridTemplateColumns = `repeat(${M}, 1fr)`;
+  elements.heatmapGrid.style.gridTemplateColumns = `minmax(48px, 0.75fr) repeat(${M}, minmax(42px, 1fr))`;
+  elements.heatmapGrid.classList.add('with-axis-labels');
+
+  const corner = document.createElement('div');
+  corner.className = 'heatmap-axis-corner';
+  elements.heatmapGrid.appendChild(corner);
+
+  state.portfolio.forEach(asset => {
+    const label = document.createElement('div');
+    label.className = 'heatmap-axis-label heatmap-axis-top';
+    label.innerText = asset.ticker.replace('-USD', '');
+    label.title = asset.ticker.replace('-USD', '');
+    elements.heatmapGrid.appendChild(label);
+  });
   
   for (let i = 0; i < M; i++) {
+    const rowLabel = document.createElement('div');
+    rowLabel.className = 'heatmap-axis-label heatmap-axis-left';
+    rowLabel.innerText = state.portfolio[i].ticker.replace('-USD', '');
+    rowLabel.title = state.portfolio[i].ticker.replace('-USD', '');
+    elements.heatmapGrid.appendChild(rowLabel);
+
     for (let j = 0; j < M; j++) {
       const coef = state.correlationMatrix[i][j];
       const cell = document.createElement('div');
@@ -833,12 +852,7 @@ function renderCorrelationHeatmap() {
     }
   }
   
-  // Render Labels
-  state.portfolio.forEach((asset, idx) => {
-    const lbl = document.createElement('span');
-    lbl.innerHTML = `<strong style="color:var(--accent-cyan);">${idx + 1}</strong>: ${asset.ticker.replace('-USD', '')}`;
-    elements.heatmapLabels.appendChild(lbl);
-  });
+  elements.heatmapLabels.innerHTML = '<span>가로/세로 축은 티커이며, 각 칸은 두 자산의 과거 수익률 상관계수입니다.</span>';
 }
 
 // Toggle Manual Parameter Override Panel
