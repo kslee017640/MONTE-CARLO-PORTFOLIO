@@ -2,6 +2,7 @@
 
 self.onmessage = function(e) {
   const {
+    model = 'statistical',
     numPaths,
     years,
     initialAmount,
@@ -15,13 +16,17 @@ self.onmessage = function(e) {
     inflationAdjusted,
     inflationRate, // Annual inflation rate (e.g. 0.025)
     rebalanceFreq, // 'none', 'monthly', 'quarterly', 'annually'
-    riskFreeRate   // Annual risk free rate (e.g. 0.0)
+    riskFreeRate,  // Annual risk free rate (e.g. 0.0)
+    outputPercentiles = [5, 10, 15, 20, 25, 50, 75, 90, 95],
+    historicalReturnRows = []
   } = e.data;
 
   const numAssets = allocations.length;
   const numMonths = years * 12;
   const rF = riskFreeRate / 12; // Monthly risk free rate
   const monthlyInflation = Math.pow(1 + inflationRate, 1 / 12) - 1;
+  const tradingDaysPerMonth = 21;
+  const useBootstrap = model === 'bootstrap' && historicalReturnRows.length > 0;
 
   // Helper: Standard Normal Generator (Box-Muller)
   function randomNormal() {
@@ -81,32 +86,43 @@ self.onmessage = function(e) {
 
     // Simulate month-by-month
     for (let m = 1; m <= numMonths; m++) {
-      // 1. Generate independent standard normal random variables
-      const randNormalVec = new Float64Array(numAssets);
-      for (let i = 0; i < numAssets; i++) {
-        randNormalVec[i] = randomNormal();
-      }
-
-      // 2. Multiply by Cholesky factor to get correlated random variables Z
-      const Z = new Float64Array(numAssets);
-      for (let i = 0; i < numAssets; i++) {
-        let sum = 0;
-        for (let j = 0; j <= i; j++) {
-          sum += choleskyL[i][j] * randNormalVec[j];
+      // 1. Compute asset return factors.
+      const returnFactors = new Float64Array(numAssets);
+      if (useBootstrap) {
+        for (let i = 0; i < numAssets; i++) {
+          returnFactors[i] = 1.0;
         }
-        Z[i] = sum;
+        for (let d = 0; d < tradingDaysPerMonth; d++) {
+          const row = historicalReturnRows[Math.floor(Math.random() * historicalReturnRows.length)];
+          for (let i = 0; i < numAssets; i++) {
+            returnFactors[i] *= Math.max(0.0001, 1 + (row[i] || 0));
+          }
+        }
+      } else {
+        const randNormalVec = new Float64Array(numAssets);
+        for (let i = 0; i < numAssets; i++) {
+          randNormalVec[i] = randomNormal();
+        }
+
+        const Z = new Float64Array(numAssets);
+        for (let i = 0; i < numAssets; i++) {
+          let sum = 0;
+          for (let j = 0; j <= i; j++) {
+            sum += choleskyL[i][j] * randNormalVec[j];
+          }
+          Z[i] = sum;
+        }
+
+        for (let i = 0; i < numAssets; i++) {
+          returnFactors[i] = Math.exp(means[i] + volatilities[i] * Z[i]);
+        }
       }
 
-      // 3. Compute asset returns and update asset values
+      // 2. Update asset values
       let sumAssetValuesPre = 0;
       const assetValuesPre = new Float64Array(numAssets);
       for (let i = 0; i < numAssets; i++) {
-        // Geometric Brownian Motion monthly return factor
-        // r_i = (mu - 0.5 * sigma^2) + sigma * Z_i
-        const drift = means[i] - 0.5 * volatilities[i] * volatilities[i];
-        const randomShock = volatilities[i] * Z[i];
-        const returnFactor = Math.exp(drift + randomShock);
-        assetValuesPre[i] = assetValues[i] * returnFactor;
+        assetValuesPre[i] = assetValues[i] * returnFactors[i];
         sumAssetValuesPre += assetValuesPre[i];
       }
 
@@ -279,7 +295,9 @@ self.onmessage = function(e) {
   }
 
   // Calculate the trajectory for each percentile over the years
-  const percentilesToTrack = [5, 10, 15, 20, 25, 50, 75, 90, 95];
+  const percentilesToTrack = [...new Set([...outputPercentiles, 5, 10, 25, 50, 75, 90, 95])]
+    .filter(p => Number.isFinite(p) && p >= 0 && p <= 100)
+    .sort((a, b) => a - b);
   const percentileTrajectoriesNominal = {};
   const percentileTrajectoriesReal = {};
 
@@ -319,7 +337,6 @@ self.onmessage = function(e) {
     pwr: allPWR
   };
 
-  const outputPercentiles = [5, 10, 15, 20, 25, 50, 75, 90, 95];
   for (const metricKey in metrics) {
     summaryPercentiles[metricKey] = {};
     for (const p of outputPercentiles) {
@@ -327,13 +344,40 @@ self.onmessage = function(e) {
     }
   }
 
+  function probabilityAtOrAbove(target) {
+    let count = 0;
+    for (let i = 0; i < allFinalBalancesNominal.length; i++) {
+      if (allFinalBalancesNominal[i] >= target) count++;
+    }
+    return (count / allFinalBalancesNominal.length) * 100;
+  }
+
+  function probabilityAtOrBelow(target) {
+    let count = 0;
+    for (let i = 0; i < allFinalBalancesNominal.length; i++) {
+      if (allFinalBalancesNominal[i] <= target) count++;
+    }
+    return (count / allFinalBalancesNominal.length) * 100;
+  }
+
+  const probabilities = [
+    { label: "원금 이상 보존 (1.0x)", probability: probabilityAtOrAbove(initialAmount) },
+    { label: "원금의 1.5배 이상 (1.5x)", probability: probabilityAtOrAbove(initialAmount * 1.5) },
+    { label: "원금의 2배 이상 (2.0x)", probability: probabilityAtOrAbove(initialAmount * 2.0) },
+    { label: "원금의 3배 이상 (3.0x)", probability: probabilityAtOrAbove(initialAmount * 3.0) },
+    { label: "원금의 5배 이상 (5.0x)", probability: probabilityAtOrAbove(initialAmount * 5.0) },
+    { label: "포트폴리오 고갈 확률 (0달러)", probability: probabilityAtOrBelow(0.1) }
+  ];
+
   // Post final results
   self.postMessage({
     type: 'results',
     results: {
       percentileTrajectoriesNominal,
       percentileTrajectoriesReal,
-      summaryPercentiles
+      summaryPercentiles,
+      probabilities,
+      modelUsed: useBootstrap ? 'bootstrap' : 'statistical'
     }
   });
 };

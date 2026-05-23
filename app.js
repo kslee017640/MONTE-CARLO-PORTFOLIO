@@ -22,6 +22,8 @@ let state = {
   calibratedParams: {}, // ticker -> { cagr: num, vol: num, sharpe: num, startDate: str, endDate: str }
   correlationMatrix: [], // 2D array of correlation coefficients
   alignedDates: [],
+  alignedPrices: {},
+  historicalReturnRows: [], // daily simple returns aligned by date, preserving cross-asset movement for bootstrap
   simulationResults: null,
   manualModeActive: false,
   worker: null
@@ -166,6 +168,8 @@ function resetCalibrationState() {
   state.calibratedParams = {};
   state.correlationMatrix = [];
   state.alignedDates = [];
+  state.alignedPrices = {};
+  state.historicalReturnRows = [];
   state.simulationResults = null;
   state.manualModeActive = false;
   elements.manualDataEditor.classList.remove('active');
@@ -667,6 +671,10 @@ function calculateStatistics() {
   }
   
   state.correlationMatrix = corrMatrix;
+  state.historicalReturnRows = [];
+  for (let t = 0; t < N - 1; t++) {
+    state.historicalReturnRows.push(tickers.map(ticker => Math.exp(returns[ticker][t]) - 1));
+  }
   
   // 3. Store calibrated parameters
   const riskFreeRateVal = parseFloat(elements.riskFreeRate.value) / 100;
@@ -773,7 +781,7 @@ function toggleManualEditor() {
   
   if (state.manualModeActive) {
     elements.manualDataEditor.classList.add('active');
-    elements.btnToggleManual.innerText = '✕ 수동 끄기';
+    elements.btnToggleManual.innerText = '수동 끄기';
     
     // Populate manual inputs
     elements.manualInputsContainer.innerHTML = '';
@@ -803,7 +811,7 @@ function toggleManualEditor() {
     });
   } else {
     elements.manualDataEditor.classList.remove('active');
-    elements.btnToggleManual.innerText = '✏️ 값 직접 수정 (수동)';
+    elements.btnToggleManual.innerText = '값 직접 수정 (수동)';
   }
 }
 
@@ -907,8 +915,13 @@ function runMonteCarlo() {
   const inflationRateVal = parseFloat(elements.inflationRate.value) / 100;
   const rebalanceFreqVal = elements.rebalanceFreq.value;
   const riskFreeRateVal = parseFloat(elements.riskFreeRate.value) / 100;
+  const simulationModelVal = elements.simulationModel.value;
+  const outputPercentiles = parseOutputPercentiles();
   
   showLoading(true, "예측 시뮬레이션 수행 중...", `몬테카를로 모델을 바탕으로 ${numPaths.toLocaleString()}회 시나리오를 예측 중입니다.`, true);
+  
+  const modelName = simulationModelVal === 'bootstrap' ? 'Bootstrap' : 'GBM';
+  showLoading(true, "시뮬레이션 실행 중...", `${modelName} 모델로 ${numPaths.toLocaleString()}개 시나리오를 계산 중입니다.`, true);
   
   // Prepare parameters for Web Worker
   const allocations = state.portfolio.map(a => a.allocation / 100);
@@ -947,6 +960,7 @@ function runMonteCarlo() {
   
   // Send data to worker
   state.worker.postMessage({
+    model: simulationModelVal,
     numPaths,
     years,
     initialAmount: initialAmountVal,
@@ -960,7 +974,9 @@ function runMonteCarlo() {
     inflationAdjusted: inflationAdjustedVal,
     inflationRate: inflationRateVal,
     rebalanceFreq: rebalanceFreqVal,
-    riskFreeRate: riskFreeRateVal
+    riskFreeRate: riskFreeRateVal,
+    outputPercentiles,
+    historicalReturnRows: state.historicalReturnRows
   });
   
   // Handle worker messages
@@ -980,6 +996,12 @@ function runMonteCarlo() {
       elements.sectionResults.style.pointerEvents = 'all';
       elements.sectionResults.scrollIntoView({ behavior: 'smooth' });
     }
+  };
+
+  state.worker.onerror = function(error) {
+    showLoading(false);
+    elements.statusDot.className = 'status-dot error';
+    elements.statusText.innerText = `시뮬레이션 실패: ${error.message || '알 수 없는 워커 오류'}`;
   };
 }
 
@@ -1027,11 +1049,26 @@ function fmtNum(val) {
   return val.toFixed(2);
 }
 
+function parseOutputPercentiles() {
+  const values = elements.percentileIntervals.value
+    .split(',')
+    .map(v => Math.round(parseFloat(v.trim())))
+    .filter(v => Number.isFinite(v) && v >= 0 && v <= 100);
+  const unique = [...new Set(values)].sort((a, b) => a - b);
+  return unique.length > 0 ? unique : [5, 10, 25, 50, 75, 90, 95];
+}
+
+function getPlotPercentiles(results) {
+  const preferred = [5, 10, 25, 50, 75, 90, 95];
+  const available = Object.keys(results.percentileTrajectoriesNominal || {}).map(Number);
+  const plotList = preferred.filter(p => available.includes(p));
+  return plotList.length > 0 ? plotList : available.sort((a, b) => a - b).slice(0, 7);
+}
+
 // Render performance summary table (percentiles)
 function renderSummaryTable() {
   const results = state.simulationResults;
-  const pList = elements.percentileIntervals.value.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
-  pList.sort((a,b) => a - b);
+  const pList = parseOutputPercentiles().filter(p => results.summaryPercentiles.finalBalanceNominal[p] !== undefined);
   
   // Setup header
   elements.summaryTableHeaderRow.innerHTML = `<th>성과 통계지표 (Metrics)</th>`;
@@ -1157,6 +1194,28 @@ function renderProbabilities() {
   });
 }
 
+// Accurate probability rendering from worker-calculated final balances.
+function renderProbabilities() {
+  const results = state.simulationResults;
+  elements.probabilitiesContainer.innerHTML = '';
+
+  (results.probabilities || []).forEach(m => {
+    const prob = Math.max(0, Math.min(100, m.probability));
+    const bar = document.createElement('div');
+    bar.className = 'probability-row';
+    bar.innerHTML = `
+      <div class="probability-row-head">
+        <span>${m.label}</span>
+        <strong>${prob.toFixed(1)}%</strong>
+      </div>
+      <div class="allocation-progress-wrapper probability-track">
+        <div class="allocation-progress-fill" style="width:${prob}%; background: var(--accent-cyan);"></div>
+      </div>
+    `;
+    elements.probabilitiesContainer.appendChild(bar);
+  });
+}
+
 // Update Results Line Chart
 function updateProjectionChart() {
   const results = state.simulationResults;
@@ -1171,7 +1230,7 @@ function updateProjectionChart() {
   
   const labels = Array.from({ length: years + 1 }, (_, y) => `Year ${y}`);
   
-  const percentilesToPlot = [5, 10, 25, 50, 75, 90, 95];
+  const percentilesToPlot = getPlotPercentiles(results);
   const colors = {
     5: 'rgba(244, 63, 94, 0.85)',   // Rose
     10: 'rgba(245, 158, 11, 0.85)',  // Amber
@@ -1189,7 +1248,7 @@ function updateProjectionChart() {
     return {
       label: `${p}th Percentile`,
       data: pathValues,
-      borderColor: colors[p],
+      borderColor: colors[p] || 'rgba(148, 163, 184, 0.85)',
       backgroundColor: 'transparent',
       borderWidth: p === 50 ? 3 : 1.5,
       pointRadius: 3,
@@ -1256,8 +1315,7 @@ function downloadCSV() {
   const results = state.simulationResults;
   if (!results) return;
   
-  const pList = elements.percentileIntervals.value.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
-  pList.sort((a,b) => a - b);
+  const pList = parseOutputPercentiles().filter(p => results.summaryPercentiles.finalBalanceNominal[p] !== undefined);
   
   let csv = '\uFEFF'; // Excel UTF-8 BOM
   csv += 'Monte Carlo Simulation Results Summary\n';
