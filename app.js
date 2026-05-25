@@ -61,6 +61,12 @@ const elements = {
   crashTicker: document.getElementById('crashTicker'),
   crashIntervalYears: document.getElementById('crashIntervalYears'),
   crashDropPct: document.getElementById('crashDropPct'),
+  returnHaircut: document.getElementById('returnHaircut'),
+  volatilityMultiplier: document.getElementById('volatilityMultiplier'),
+  modelCalibrationPanel: document.getElementById('modelCalibrationPanel'),
+  modelCalibrationSummary: document.getElementById('modelCalibrationSummary'),
+  modelCalibrationStats: document.getElementById('modelCalibrationStats'),
+  btnRecalibrateModel: document.getElementById('btnRecalibrateModel'),
   
   tickerListContainer: document.getElementById('tickerListContainer'),
   newTickerInput: document.getElementById('newTickerInput'),
@@ -135,6 +141,10 @@ window.addEventListener('DOMContentLoaded', () => {
   
   elements.cashflowType.addEventListener('change', handleCashflowTypeChange);
   elements.crashEnabled?.addEventListener('change', updateCrashOptionState);
+  elements.simulationModel?.addEventListener('change', () => {
+    if (state.historicalReturnRows.length > 0) calibrateModelToHistoricalPeriod();
+  });
+  elements.btnRecalibrateModel?.addEventListener('click', calibrateModelToHistoricalPeriod);
   elements.btnToggleManual.addEventListener('click', toggleManualEditor);
   elements.btnCancelManual.addEventListener('click', toggleManualEditor);
   elements.btnApplyManual.addEventListener('click', applyManualParams);
@@ -237,6 +247,12 @@ function resetCalibrationState() {
   elements.heatmapGrid.innerHTML = '';
   elements.heatmapGrid.style.gridTemplateColumns = 'none';
   elements.heatmapLabels.innerHTML = '';
+  if (elements.modelCalibrationSummary) {
+    elements.modelCalibrationSummary.innerText = '1단계 실행 후 과거 실제 결과와 시뮬레이션 결과를 비교해 보수 보정값을 자동 계산합니다.';
+  }
+  if (elements.modelCalibrationStats) {
+    elements.modelCalibrationStats.innerHTML = '';
+  }
   
   elements.btnRunSimulation.disabled = true;
   elements.sectionResults.style.opacity = '0.5';
@@ -615,6 +631,7 @@ async function calibrateParameters() {
     
     // Draw Correlation Heatmap
     renderCorrelationHeatmap();
+    calibrateModelToHistoricalPeriod();
     
     elements.statusDot.className = 'status-dot active';
     elements.statusText.innerText = '상수값 추출 완료. 모수가 정상적으로 세팅되었습니다.';
@@ -804,6 +821,194 @@ function calculateStatistics() {
       endDate: state.alignedDates[N - 1]
     };
   });
+}
+
+function randomNormal() {
+  let u = 0;
+  let v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+function calculatePathMetrics(values, years) {
+  if (!values || values.length < 2 || years <= 0) return { cagr: 0, volatility: 0, maxDrawdown: 0 };
+
+  const returns = [];
+  let peak = values[0];
+  let maxDrawdown = 0;
+
+  for (let i = 1; i < values.length; i++) {
+    const prev = values[i - 1];
+    const current = values[i];
+    if (prev > 0) returns.push((current / prev) - 1);
+    if (current > peak) peak = current;
+    const drawdown = peak > 0 ? (current - peak) / peak : 0;
+    if (drawdown < maxDrawdown) maxDrawdown = drawdown;
+  }
+
+  const cagr = values[0] > 0 && values[values.length - 1] > 0
+    ? Math.pow(values[values.length - 1] / values[0], 1 / years) - 1
+    : -1;
+  const mean = returns.reduce((sum, value) => sum + value, 0) / Math.max(1, returns.length);
+  const variance = returns.length > 1
+    ? returns.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / (returns.length - 1)
+    : 0;
+
+  return { cagr, volatility: Math.sqrt(variance) * Math.sqrt(252), maxDrawdown };
+}
+
+function getHistoricalPortfolioMetrics() {
+  if (state.historicalReturnRows.length < 30 || state.alignedDates.length < 2) return null;
+
+  const allocations = state.portfolio.map(asset => asset.allocation / 100);
+  const values = [1];
+  let value = 1;
+
+  state.historicalReturnRows.forEach(row => {
+    const portfolioReturn = row.reduce((sum, assetReturn, index) => sum + allocations[index] * (assetReturn || 0), 0);
+    value *= Math.max(0.0001, 1 + portfolioReturn);
+    values.push(value);
+  });
+
+  const years = (new Date(state.alignedDates[state.alignedDates.length - 1]) - new Date(state.alignedDates[0])) / (1000 * 60 * 60 * 24 * 365.25);
+  return { ...calculatePathMetrics(values, years), years };
+}
+
+function getPercentileFromArray(values, percentile) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = (sorted.length - 1) * (percentile / 100);
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  const weight = index - lower;
+  return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+}
+
+function simulateHistoricalCalibrationPaths(model, years, numPaths = 300) {
+  const allocations = state.portfolio.map(asset => asset.allocation / 100);
+  const numAssets = allocations.length;
+  const numMonths = Math.max(1, Math.round(years * 12));
+  const tradingDaysPerMonth = 21;
+  const useBootstrap = model === 'bootstrap' && state.historicalReturnRows.length >= tradingDaysPerMonth;
+  const means = [];
+  const volatilities = [];
+
+  state.portfolio.forEach(asset => {
+    const params = state.calibratedParams[asset.ticker];
+    const safeCagr = Math.max(-0.95, params?.cagr || 0);
+    means.push(Math.log(1 + safeCagr) / 12);
+    volatilities.push((params?.volatility || 0) / Math.sqrt(12));
+  });
+
+  let L = getCholeskyFactor(state.correlationMatrix);
+  if (!L) {
+    L = Array.from({ length: numAssets }, () => new Float64Array(numAssets));
+    for (let i = 0; i < numAssets; i++) L[i][i] = 1;
+  }
+
+  const cagrValues = [];
+  const volatilityValues = [];
+  const drawdownValues = [];
+
+  for (let path = 0; path < numPaths; path++) {
+    const values = [1];
+    let value = 1;
+
+    for (let m = 0; m < numMonths; m++) {
+      const returnFactors = new Float64Array(numAssets);
+      if (useBootstrap) {
+        const maxStart = Math.max(0, state.historicalReturnRows.length - tradingDaysPerMonth);
+        const start = Math.floor(Math.random() * (maxStart + 1));
+        for (let i = 0; i < numAssets; i++) returnFactors[i] = 1;
+        for (let d = 0; d < tradingDaysPerMonth; d++) {
+          const row = state.historicalReturnRows[start + d] || state.historicalReturnRows[state.historicalReturnRows.length - 1];
+          for (let i = 0; i < numAssets; i++) {
+            returnFactors[i] *= Math.max(0.0001, 1 + (row[i] || 0));
+          }
+        }
+      } else {
+        const randNormalVec = new Float64Array(numAssets);
+        for (let i = 0; i < numAssets; i++) randNormalVec[i] = randomNormal();
+        for (let i = 0; i < numAssets; i++) {
+          let z = 0;
+          for (let j = 0; j <= i; j++) z += L[i][j] * randNormalVec[j];
+          returnFactors[i] = Math.exp(means[i] + volatilities[i] * z);
+        }
+      }
+
+      const portfolioFactor = returnFactors.reduce((sum, factor, index) => sum + allocations[index] * factor, 0);
+      value *= Math.max(0.0001, portfolioFactor);
+      values.push(value);
+    }
+
+    const metrics = calculatePathMetrics(values, years);
+    cagrValues.push(metrics.cagr);
+    volatilityValues.push(metrics.volatility);
+    drawdownValues.push(metrics.maxDrawdown);
+  }
+
+  return {
+    cagr: getPercentileFromArray(cagrValues, 50),
+    volatility: getPercentileFromArray(volatilityValues, 50),
+    maxDrawdown: getPercentileFromArray(drawdownValues, 50)
+  };
+}
+
+function recommendConservativeAdjustments(actual, simulated) {
+  let returnHaircut = 0;
+  if (simulated.cagr > 0) {
+    returnHaircut = actual.cagr > 0 ? 1 - (actual.cagr / simulated.cagr) : 0.65;
+  }
+  const highReturnFloor = actual.cagr > 0.15 ? 0.35 : actual.cagr > 0.08 ? 0.2 : 0;
+  returnHaircut = Math.max(returnHaircut, highReturnFloor);
+  returnHaircut = Math.max(0, Math.min(0.85, returnHaircut));
+
+  const volRatio = simulated.volatility > 0 ? actual.volatility / simulated.volatility : 1;
+  const mddRatio = Math.abs(simulated.maxDrawdown) > 0.001
+    ? Math.abs(actual.maxDrawdown) / Math.abs(simulated.maxDrawdown)
+    : 1;
+  const volatilityMultiplier = Math.max(1, Math.min(2.5, Math.max(volRatio, mddRatio) * 1.05));
+
+  return { returnHaircut, volatilityMultiplier };
+}
+
+function calibrateModelToHistoricalPeriod() {
+  if (!elements.modelCalibrationPanel || state.historicalReturnRows.length < 30) return;
+
+  const actual = getHistoricalPortfolioMetrics();
+  if (!actual) return;
+
+  const model = elements.simulationModel.value;
+  const simulated = simulateHistoricalCalibrationPaths(model, actual.years);
+  const recommended = recommendConservativeAdjustments(actual, simulated);
+
+  elements.returnHaircut.value = Math.round(recommended.returnHaircut * 100 / 5) * 5;
+  elements.volatilityMultiplier.value = recommended.volatilityMultiplier.toFixed(2);
+
+  const modelName = model === 'bootstrap' ? '역사적 복원 추출' : '통계 기반 GBM';
+  elements.modelCalibrationSummary.innerHTML = `
+    <strong>${modelName}</strong>을 과거 ${actual.years.toFixed(1)}년 구간에 먼저 돌려본 뒤,
+    실제 과거 포트폴리오와 중앙값을 비교해 보수 보정값을 자동 적용했습니다.
+  `;
+
+  const statItems = [
+    { label: '실제 과거 CAGR', value: fmtPct(actual.cagr) },
+    { label: '시뮬 중앙 CAGR', value: fmtPct(simulated.cagr) },
+    { label: '실제 변동성', value: fmtPct(actual.volatility) },
+    { label: '시뮬 변동성', value: fmtPct(simulated.volatility) },
+    { label: '실제 최대낙폭', value: fmtPct(actual.maxDrawdown) },
+    { label: '시뮬 최대낙폭', value: fmtPct(simulated.maxDrawdown) },
+    { label: '적용 수익 할인', value: `${elements.returnHaircut.value}%` },
+    { label: '적용 변동성 배율', value: `${elements.volatilityMultiplier.value}x` }
+  ];
+
+  elements.modelCalibrationStats.innerHTML = statItems.map(item => `
+    <div class="calibration-stat-card">
+      <span>${item.label}</span>
+      <strong>${item.value}</strong>
+    </div>
+  `).join('');
 }
 
 // Render Parameters summary table
@@ -1077,6 +1282,12 @@ function buildCrashSettings() {
   return { enabled, ticker, tickerIndex, intervalYears, dropPct, impacts };
 }
 
+function getConservativeAdjustments() {
+  const returnHaircut = Math.max(0, Math.min(0.9, (parseFloat(elements.returnHaircut?.value) || 0) / 100));
+  const volatilityMultiplier = Math.max(0.5, Math.min(3, parseFloat(elements.volatilityMultiplier?.value) || 1));
+  return { returnHaircut, volatilityMultiplier };
+}
+
 // Step 2: Dispatch and Run Monte Carlo Simulation
 function runMonteCarlo() {
   const total = state.portfolio.reduce((sum, asset) => sum + asset.allocation, 0);
@@ -1099,6 +1310,7 @@ function runMonteCarlo() {
   const outputPercentiles = parseOutputPercentiles();
   const totalInvestedVal = calculateTotalInvested();
   const crashSettings = buildCrashSettings();
+  const conservativeAdjustments = getConservativeAdjustments();
   
   showLoading(true, "예측 시뮬레이션 수행 중...", `몬테카를로 모델을 바탕으로 ${numPaths.toLocaleString()}회 시나리오를 예측 중입니다.`, true);
   
@@ -1117,10 +1329,15 @@ function runMonteCarlo() {
     
     // Scale returns: annual CAGR → annual log return → monthly log drift
     // Math.log(1 + cagr) converts simple return to log return
-    means.push(Math.log(1 + params.cagr) / 12);
+    const safeCagr = Math.max(-0.95, params.cagr);
+    const annualLogReturn = Math.log(1 + safeCagr);
+    const adjustedAnnualLogReturn = annualLogReturn >= 0
+      ? annualLogReturn * (1 - conservativeAdjustments.returnHaircut)
+      : annualLogReturn * conservativeAdjustments.volatilityMultiplier;
+    means.push(adjustedAnnualLogReturn / 12);
     
     // Scale volatility: annual vol / sqrt(12)
-    volatilities.push(params.volatility / Math.sqrt(12));
+    volatilities.push((params.volatility * conservativeAdjustments.volatilityMultiplier) / Math.sqrt(12));
   });
   
   // Calculate Cholesky Decomposition Matrix L
@@ -1161,7 +1378,8 @@ function runMonteCarlo() {
     historicalReturnRows: state.historicalReturnRows,
     probabilityBaseAmount: totalInvestedVal,
     totalInvested: totalInvestedVal,
-    crashSettings
+    crashSettings,
+    conservativeAdjustments
   });
   
   // Handle worker messages
@@ -1201,6 +1419,7 @@ function displaySimulationResults() {
   const cashflowFreqText = elements.cashflowFreq.value === 'annually' ? '매년' : '매월';
   const totalInvested = results.totalInvested || calculateTotalInvested();
   const crashSettings = results.crashSettings || buildCrashSettings();
+  const conservativeAdjustments = results.conservativeAdjustments || getConservativeAdjustments();
   
   // Update description text
   let cashflowText = "현금 흐름 없음";
@@ -1219,6 +1438,7 @@ function displaySimulationResults() {
     총투자금: <strong>${fmtCurrWithKrw(totalInvested)}</strong> |
     현금흐름: <strong>${cashflowText}</strong> | 
     폭락장: <strong>${crashText}</strong> |
+    보수보정: <strong>수익 ${Math.round(conservativeAdjustments.returnHaircut * 100)}% 할인 / 변동성 ${conservativeAdjustments.volatilityMultiplier.toFixed(2)}x</strong> |
     예측 시나리오: <strong>${numPaths.toLocaleString()}개 조합</strong>
   `;
   

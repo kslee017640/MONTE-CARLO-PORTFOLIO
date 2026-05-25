@@ -21,7 +21,8 @@ self.onmessage = function(e) {
     historicalReturnRows = [],
     probabilityBaseAmount = initialAmount,
     totalInvested = initialAmount,
-    crashSettings = { enabled: false }
+    crashSettings = { enabled: false },
+    conservativeAdjustments = { returnHaircut: 0, volatilityMultiplier: 1 }
   } = e.data;
 
   const numAssets = allocations.length;
@@ -30,6 +31,8 @@ self.onmessage = function(e) {
   const monthlyInflation = Math.pow(1 + inflationRate, 1 / 12) - 1;
   const tradingDaysPerMonth = 21;
   const useBootstrap = model === 'bootstrap' && historicalReturnRows.length > 0;
+  const returnHaircut = Math.max(0, Math.min(0.9, conservativeAdjustments.returnHaircut || 0));
+  const volatilityMultiplier = Math.max(0.5, Math.min(3, conservativeAdjustments.volatilityMultiplier || 1));
   const crashEnabled = Boolean(crashSettings.enabled && crashSettings.dropPct > 0 && crashSettings.intervalYears > 0);
   const crashMonthInterval = crashEnabled ? Math.max(1, Math.round(crashSettings.intervalYears * 12)) : 0;
 
@@ -107,11 +110,20 @@ self.onmessage = function(e) {
         for (let i = 0; i < numAssets; i++) {
           returnFactors[i] = 1.0;
         }
+        const maxStartIndex = Math.max(0, historicalReturnRows.length - tradingDaysPerMonth);
+        const blockStartIndex = Math.floor(Math.random() * (maxStartIndex + 1));
         for (let d = 0; d < tradingDaysPerMonth; d++) {
-          const row = historicalReturnRows[Math.floor(Math.random() * historicalReturnRows.length)];
+          const row = historicalReturnRows[blockStartIndex + d] || historicalReturnRows[historicalReturnRows.length - 1];
           for (let i = 0; i < numAssets; i++) {
             returnFactors[i] *= Math.max(0.0001, 1 + (row[i] || 0));
           }
+        }
+        for (let i = 0; i < numAssets; i++) {
+          const monthlyLogReturn = Math.log(Math.max(0.0001, returnFactors[i]));
+          const adjustedLogReturn = monthlyLogReturn >= 0
+            ? monthlyLogReturn * (1 - returnHaircut)
+            : monthlyLogReturn * volatilityMultiplier;
+          returnFactors[i] = Math.exp(adjustedLogReturn);
         }
       } else {
         const randNormalVec = new Float64Array(numAssets);
@@ -387,6 +399,7 @@ self.onmessage = function(e) {
       probabilities,
       totalInvested,
       crashSettings,
+      conservativeAdjustments,
       modelUsed: useBootstrap ? 'bootstrap' : 'statistical'
     }
   });

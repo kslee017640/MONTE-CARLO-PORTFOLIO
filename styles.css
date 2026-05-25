@@ -1011,6 +1011,54 @@ tr:hover td {
   line-height: 1.5;
 }
 
+.model-calibration-panel {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border-light);
+  padding-top: 1.5rem;
+}
+
+.model-calibration-panel h3 {
+  font-size: 0.95rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  margin-bottom: 0;
+}
+
+.calibration-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.calibration-stat-card {
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.45);
+  padding: 0.75rem;
+  min-width: 0;
+}
+
+.calibration-stat-card span,
+.calibration-stat-card strong {
+  display: block;
+}
+
+.calibration-stat-card span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.calibration-stat-card strong {
+  margin-top: 0.25rem;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+}
+
 .summary-table-scroll {
   overflow-x: auto;
   max-width: 100%;
@@ -1260,6 +1308,10 @@ tr:hover td {
 
   .summary-table-scroll table {
     min-width: 900px;
+  }
+
+  .calibration-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .summary-table-scroll th:first-child,
