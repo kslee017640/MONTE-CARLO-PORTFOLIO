@@ -1250,7 +1250,7 @@ tr:hover td {
   }
 
   .chart-scroll-frame {
-    grid-template-columns: 82px minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
     width: 100%;
   }
 

@@ -1244,6 +1244,19 @@ function fmtCurrWithKrw(val) {
   const krw = formatKrwShort(val * USD_KRW_RATE);
   return `${usd} (${krw})`;
 }
+function fmtAxisPower(val) {
+  if (!Number.isFinite(val) || val === 0) return '$0';
+  const sign = val < 0 ? '-' : '';
+  const absVal = Math.abs(val);
+  if (absVal < 1000) return `${sign}$${Math.round(absVal)}`;
+
+  const exponent = Math.floor(Math.log10(absVal));
+  const mantissa = absVal / Math.pow(10, exponent);
+  const compactMantissa = mantissa >= 9.95
+    ? '10'
+    : mantissa.toFixed(mantissa >= 2 ? 0 : 1).replace('.0', '');
+  return `${sign}$${compactMantissa}×10^${exponent}`;
+}
 function formatKrwShort(krwValue) {
   const value = Math.round(Math.abs(krwValue));
   const sign = krwValue < 0 ? '-' : '';
@@ -1509,7 +1522,7 @@ function updateProjectionChart() {
           ticks: {
             display: false,
             callback: function(value) {
-              return '$' + Math.round(value).toLocaleString();
+              return fmtAxisPower(value);
             }
           }
         },
@@ -1573,7 +1586,7 @@ function updateProjectionChart() {
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
           ticks: {
             color: '#94a3b8',
-            callback: value => '$' + Math.round(value).toLocaleString()
+            callback: value => fmtAxisPower(value)
           }
         },
         x: {
