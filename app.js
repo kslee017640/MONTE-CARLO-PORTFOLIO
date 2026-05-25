@@ -1464,18 +1464,23 @@ function fmtCurrWithKrw(val) {
   const krw = formatKrwShort(val * USD_KRW_RATE);
   return `${usd} (${krw})`;
 }
-function fmtAxisPower(val) {
+function fmtAxisCompact(val) {
   if (!Number.isFinite(val) || val === 0) return '$0';
   const sign = val < 0 ? '-' : '';
   const absVal = Math.abs(val);
-  if (absVal < 1000) return `${sign}$${Math.round(absVal)}`;
+  const units = [
+    { value: 1e12, suffix: 'T' },
+    { value: 1e9, suffix: 'B' },
+    { value: 1e6, suffix: 'M' },
+    { value: 1e3, suffix: 'K' }
+  ];
 
-  const exponent = Math.floor(Math.log10(absVal));
-  const mantissa = absVal / Math.pow(10, exponent);
-  const compactMantissa = mantissa >= 9.95
-    ? '10'
-    : mantissa.toFixed(mantissa >= 2 ? 0 : 1).replace('.0', '');
-  return `${sign}$${compactMantissa}×10^${exponent}`;
+  const unit = units.find(item => absVal >= item.value);
+  if (!unit) return `${sign}$${Math.round(absVal)}`;
+
+  const scaled = absVal / unit.value;
+  const digits = scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2;
+  return `${sign}$${scaled.toFixed(digits).replace(/\.0+$/, '').replace(/(\.\d)0$/, '$1')}${unit.suffix}`;
 }
 function formatKrwShort(krwValue) {
   const value = Math.round(Math.abs(krwValue));
@@ -1742,7 +1747,7 @@ function updateProjectionChart() {
           ticks: {
             display: false,
             callback: function(value) {
-              return fmtAxisPower(value);
+              return fmtAxisCompact(value);
             }
           }
         },
@@ -1806,7 +1811,7 @@ function updateProjectionChart() {
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
           ticks: {
             color: '#94a3b8',
-            callback: value => fmtAxisPower(value)
+            callback: value => fmtAxisCompact(value)
           }
         },
         x: {
