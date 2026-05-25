@@ -57,6 +57,10 @@ const elements = {
   percentileIntervals: document.getElementById('percentileIntervals'),
   simRunsCount: document.getElementById('simRunsCount'),
   simulationModel: document.getElementById('simulationModel'),
+  crashEnabled: document.getElementById('crashEnabled'),
+  crashTicker: document.getElementById('crashTicker'),
+  crashIntervalYears: document.getElementById('crashIntervalYears'),
+  crashDropPct: document.getElementById('crashDropPct'),
   
   tickerListContainer: document.getElementById('tickerListContainer'),
   newTickerInput: document.getElementById('newTickerInput'),
@@ -115,6 +119,7 @@ const elements = {
 window.addEventListener('DOMContentLoaded', () => {
   moveCalibrationSectionIntoStepOne();
   renderTickers();
+  updateCrashTickerOptions();
   updateAllocationTotal();
   initAllocationPieChart();
   
@@ -129,6 +134,7 @@ window.addEventListener('DOMContentLoaded', () => {
   elements.btnRunSimulation.addEventListener('click', runMonteCarlo);
   
   elements.cashflowType.addEventListener('change', handleCashflowTypeChange);
+  elements.crashEnabled?.addEventListener('change', updateCrashOptionState);
   elements.btnToggleManual.addEventListener('click', toggleManualEditor);
   elements.btnCancelManual.addEventListener('click', toggleManualEditor);
   elements.btnApplyManual.addEventListener('click', applyManualParams);
@@ -152,6 +158,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setupHelpToggles();
 
   handleCashflowTypeChange();
+  updateCrashOptionState();
 });
 
 function moveCalibrationSectionIntoStepOne() {
@@ -186,6 +193,7 @@ function setupHelpToggles() {
 function resetPortfolio() {
   state.portfolio = [];
   renderTickers();
+  updateCrashTickerOptions();
   updateAllocationTotal();
   updateAllocationPieChart();
   resetCalibrationState();
@@ -195,6 +203,7 @@ function resetPortfolio() {
 function loadDefaults() {
   state.portfolio = [...DEFAULT_PORTFOLIO];
   renderTickers();
+  updateCrashTickerOptions();
   updateAllocationTotal();
   updateAllocationPieChart();
   resetCalibrationState();
@@ -260,6 +269,15 @@ function handleCashflowTypeChange() {
   }
 }
 
+function updateCrashOptionState() {
+  const enabled = elements.crashEnabled?.value === 'yes';
+  [elements.crashTicker, elements.crashIntervalYears, elements.crashDropPct].forEach(control => {
+    if (!control) return;
+    control.disabled = !enabled;
+    control.style.opacity = enabled ? '1' : '0.55';
+  });
+}
+
 // Render inputs list for tickers
 function renderTickers() {
   elements.tickerListContainer.innerHTML = '';
@@ -306,6 +324,24 @@ function renderTickers() {
     
     elements.tickerListContainer.appendChild(item);
   });
+  updateCrashTickerOptions();
+}
+
+function updateCrashTickerOptions() {
+  if (!elements.crashTicker) return;
+  const previous = elements.crashTicker.value || 'QQQ';
+  elements.crashTicker.innerHTML = '';
+  state.portfolio.forEach(asset => {
+    const option = document.createElement('option');
+    option.value = asset.ticker;
+    option.textContent = asset.ticker.replace('-USD', '');
+    elements.crashTicker.appendChild(option);
+  });
+  if (state.portfolio.some(asset => asset.ticker === previous)) {
+    elements.crashTicker.value = previous;
+  } else if (state.portfolio.some(asset => asset.ticker === 'QQQ')) {
+    elements.crashTicker.value = 'QQQ';
+  }
 }
 
 // Add ticker to list
@@ -1000,6 +1036,47 @@ function getCholeskyFactor(matrix) {
   return L;
 }
 
+function calculateTotalInvested() {
+  const years = parseInt(elements.simulationPeriod.value, 10) || 0;
+  const initialAmountVal = parseFloat(elements.initialAmount.value) || 0;
+  const cashflowTypeVal = elements.cashflowType.value;
+  const cashflowAmountVal = parseFloat(elements.cashflowAmount.value) || 0;
+  const cashflowFreqVal = elements.cashflowFreq.value;
+  const inflationAdjustedVal = elements.inflationAdjusted.value === 'yes';
+  const inflationRateVal = (parseFloat(elements.inflationRate.value) || 0) / 100;
+  const monthlyInflation = Math.pow(1 + inflationRateVal, 1 / 12) - 1;
+  const numMonths = years * 12;
+
+  let totalInvested = initialAmountVal;
+  if (cashflowTypeVal !== 'contribute' || cashflowAmountVal <= 0) {
+    return totalInvested;
+  }
+
+  for (let m = 1; m <= numMonths; m++) {
+    const isCashflowMonth = cashflowFreqVal === 'monthly' || (cashflowFreqVal === 'annually' && m % 12 === 0);
+    if (!isCashflowMonth) continue;
+    const inflationMultiplier = inflationAdjustedVal ? Math.pow(1 + monthlyInflation, m) : 1.0;
+    totalInvested += cashflowAmountVal * inflationMultiplier;
+  }
+
+  return totalInvested;
+}
+
+function buildCrashSettings() {
+  const enabled = elements.crashEnabled?.value === 'yes';
+  const ticker = elements.crashTicker?.value || 'QQQ';
+  const tickerIndex = state.portfolio.findIndex(asset => asset.ticker === ticker);
+  const intervalYears = Math.max(1, parseFloat(elements.crashIntervalYears?.value) || 7);
+  const dropPct = Math.max(0, Math.min(0.95, (parseFloat(elements.crashDropPct?.value) || 0) / 100));
+  const impacts = state.correlationMatrix.map(row => {
+    const corr = tickerIndex >= 0 ? row[tickerIndex] : 0;
+    return Math.max(0, Math.min(1, Number.isFinite(corr) ? corr : 0));
+  });
+  if (tickerIndex >= 0) impacts[tickerIndex] = 1;
+
+  return { enabled, ticker, tickerIndex, intervalYears, dropPct, impacts };
+}
+
 // Step 2: Dispatch and Run Monte Carlo Simulation
 function runMonteCarlo() {
   const total = state.portfolio.reduce((sum, asset) => sum + asset.allocation, 0);
@@ -1020,6 +1097,8 @@ function runMonteCarlo() {
   const riskFreeRateVal = parseFloat(elements.riskFreeRate.value) / 100;
   const simulationModelVal = elements.simulationModel.value;
   const outputPercentiles = parseOutputPercentiles();
+  const totalInvestedVal = calculateTotalInvested();
+  const crashSettings = buildCrashSettings();
   
   showLoading(true, "예측 시뮬레이션 수행 중...", `몬테카를로 모델을 바탕으로 ${numPaths.toLocaleString()}회 시나리오를 예측 중입니다.`, true);
   
@@ -1079,7 +1158,10 @@ function runMonteCarlo() {
     rebalanceFreq: rebalanceFreqVal,
     riskFreeRate: riskFreeRateVal,
     outputPercentiles,
-    historicalReturnRows: state.historicalReturnRows
+    historicalReturnRows: state.historicalReturnRows,
+    probabilityBaseAmount: totalInvestedVal,
+    totalInvested: totalInvestedVal,
+    crashSettings
   });
   
   // Handle worker messages
@@ -1116,18 +1198,27 @@ function displaySimulationResults() {
   const initialVal = parseFloat(elements.initialAmount.value);
   const cashflowTypeVal = elements.cashflowType.value;
   const cashflowAmt = parseFloat(elements.cashflowAmount.value) || 0;
+  const cashflowFreqText = elements.cashflowFreq.value === 'annually' ? '매년' : '매월';
+  const totalInvested = results.totalInvested || calculateTotalInvested();
+  const crashSettings = results.crashSettings || buildCrashSettings();
   
   // Update description text
   let cashflowText = "현금 흐름 없음";
   if (cashflowTypeVal === 'contribute') {
-    cashflowText = `매월 ${cashflowAmt.toLocaleString()}$ 추가 납입`;
+    cashflowText = `${cashflowFreqText} ${cashflowAmt.toLocaleString()}$ 추가 납입`;
   } else if (cashflowTypeVal === 'withdraw') {
-    cashflowText = `매월 ${cashflowAmt.toLocaleString()}$ 자금 분할 인출`;
+    cashflowText = `${cashflowFreqText} ${cashflowAmt.toLocaleString()}$ 자금 분할 인출`;
   }
+
+  const crashText = crashSettings.enabled
+    ? `${crashSettings.ticker.replace('-USD', '')} ${Math.round(crashSettings.dropPct * 100)}% 폭락 / ${crashSettings.intervalYears}년마다`
+    : '반영 안 함';
   
   elements.resultsDescriptionText.innerHTML = `
     수행기간: <strong>${years}년</strong> | 초기자본: <strong>${initialVal.toLocaleString()}$</strong> | 
+    총투자금: <strong>${fmtCurrWithKrw(totalInvested)}</strong> |
     현금흐름: <strong>${cashflowText}</strong> | 
+    폭락장: <strong>${crashText}</strong> |
     예측 시나리오: <strong>${numPaths.toLocaleString()}개 조합</strong>
   `;
   
@@ -1212,6 +1303,7 @@ function renderSummaryTable() {
   });
   
   const metricsMap = [
+    { label: "총투자금 (Total Invested)", key: "totalInvested", fmt: fmtCurrWithKrw, value: results.totalInvested || calculateTotalInvested() },
     { label: "연평균 수익률 (TWRR nominal)", key: "twrrNominal", fmt: fmtPct },
     { label: "연평균 실질수익률 (TWRR real)", key: "twrrReal", fmt: fmtPct },
     { label: "최종 명목 자산액 (Portfolio End nominal)", key: "finalBalanceNominal", fmt: fmtCurrWithKrw },
@@ -1239,7 +1331,7 @@ function renderSummaryTable() {
     row.innerHTML = `<td>${m.label}</td>`;
     
     pList.forEach(p => {
-      const val = results.summaryPercentiles[m.key][p];
+      const val = m.value !== undefined ? m.value : results.summaryPercentiles[m.key][p];
       let tdClass = '';
       if (m.key.includes("twrr") || m.key === "finalBalanceNominal" || m.key === "finalBalanceReal") {
         tdClass = val > 0 ? 'text-accent-green' : 'text-accent-rose';
@@ -1503,7 +1595,8 @@ function downloadCSV() {
   let csv = '\uFEFF'; // Excel UTF-8 BOM
   csv += 'Monte Carlo Simulation Results Summary\n';
   csv += `Created: ${new Date().toLocaleString()}\n`;
-  csv += `Initial Amount: $${elements.initialAmount.value}\n\n`;
+  csv += `Initial Amount: $${elements.initialAmount.value}\n`;
+  csv += `Total Invested: ${state.simulationResults.totalInvested || calculateTotalInvested()}\n\n`;
   
   // Headers
   csv += 'Metric,' + pList.map(p => `${p}th Percentile`).join(',') + '\n';

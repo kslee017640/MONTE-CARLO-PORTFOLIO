@@ -18,7 +18,10 @@ self.onmessage = function(e) {
     rebalanceFreq, // 'none', 'monthly', 'quarterly', 'annually'
     riskFreeRate,  // Annual risk free rate (e.g. 0.0)
     outputPercentiles = [5, 10, 15, 20, 25, 50, 75, 90, 95],
-    historicalReturnRows = []
+    historicalReturnRows = [],
+    probabilityBaseAmount = initialAmount,
+    totalInvested = initialAmount,
+    crashSettings = { enabled: false }
   } = e.data;
 
   const numAssets = allocations.length;
@@ -27,6 +30,18 @@ self.onmessage = function(e) {
   const monthlyInflation = Math.pow(1 + inflationRate, 1 / 12) - 1;
   const tradingDaysPerMonth = 21;
   const useBootstrap = model === 'bootstrap' && historicalReturnRows.length > 0;
+  const crashEnabled = Boolean(crashSettings.enabled && crashSettings.dropPct > 0 && crashSettings.intervalYears > 0);
+  const crashMonthInterval = crashEnabled ? Math.max(1, Math.round(crashSettings.intervalYears * 12)) : 0;
+
+  function applyCrashShock(returnFactors, monthIndex) {
+    if (!crashEnabled || monthIndex % crashMonthInterval !== 0) return;
+    const dropPct = Math.max(0, Math.min(0.95, crashSettings.dropPct || 0));
+    const impacts = Array.isArray(crashSettings.impacts) ? crashSettings.impacts : [];
+    for (let i = 0; i < numAssets; i++) {
+      const impact = Math.max(0, Math.min(1, Number.isFinite(impacts[i]) ? impacts[i] : 0));
+      returnFactors[i] *= Math.max(0.0001, 1 - dropPct * impact);
+    }
+  }
 
   // Helper: Standard Normal Generator (Box-Muller)
   function randomNormal() {
@@ -117,6 +132,7 @@ self.onmessage = function(e) {
           returnFactors[i] = Math.exp(means[i] + volatilities[i] * Z[i]);
         }
       }
+      applyCrashShock(returnFactors, m);
 
       // 2. Update asset values
       let sumAssetValuesPre = 0;
@@ -142,14 +158,14 @@ self.onmessage = function(e) {
         maxDrawdownExCash = ddExCash;
       }
 
-      // Update SWR/PWR factors (only meaningful for withdrawal scenarios)
-      if (cashflowType === 'withdraw' || cashflowType === 'none') {
-        const prev_x_t = x_t;
-        const prev_y_t = y_t;
-        x_t = prev_x_t * (1 + portfolioReturn);
-        const inflationFactor = inflationAdjusted ? Math.pow(1 + monthlyInflation, m - 1) : 1.0;
-        y_t = (prev_y_t - inflationFactor) * (1 + portfolioReturn);
-      }
+      // Update SWR/PWR factors from market returns only. This remains meaningful even
+      // when the scenario also has contributions, because it answers "what withdrawal
+      // rate would this return path have supported?"
+      const prev_x_t = x_t;
+      const prev_y_t = y_t;
+      x_t = prev_x_t * (1 + portfolioReturn);
+      const inflationFactor = inflationAdjusted ? Math.pow(1 + monthlyInflation, m - 1) : 1.0;
+      y_t = (prev_y_t - inflationFactor) * (1 + portfolioReturn);
 
       // Copy pre-cashflow values to active array
       for (let i = 0; i < numAssets; i++) {
@@ -352,21 +368,13 @@ self.onmessage = function(e) {
     return (count / allFinalBalancesNominal.length) * 100;
   }
 
-  function probabilityAtOrBelow(target) {
-    let count = 0;
-    for (let i = 0; i < allFinalBalancesNominal.length; i++) {
-      if (allFinalBalancesNominal[i] <= target) count++;
-    }
-    return (count / allFinalBalancesNominal.length) * 100;
-  }
-
+  const probabilityBase = Math.max(1, probabilityBaseAmount || initialAmount);
   const probabilities = [
-    { label: "원금 이상 보존 (1.0x)", probability: probabilityAtOrAbove(initialAmount) },
-    { label: "원금의 1.5배 이상 (1.5x)", probability: probabilityAtOrAbove(initialAmount * 1.5) },
-    { label: "원금의 2배 이상 (2.0x)", probability: probabilityAtOrAbove(initialAmount * 2.0) },
-    { label: "원금의 3배 이상 (3.0x)", probability: probabilityAtOrAbove(initialAmount * 3.0) },
-    { label: "원금의 5배 이상 (5.0x)", probability: probabilityAtOrAbove(initialAmount * 5.0) },
-    { label: "포트폴리오 고갈 확률 (0달러)", probability: probabilityAtOrBelow(0.1) }
+    { label: "총투자금의 1배 이상 (1x)", probability: probabilityAtOrAbove(probabilityBase * 1) },
+    { label: "총투자금의 2배 이상 (2x)", probability: probabilityAtOrAbove(probabilityBase * 2) },
+    { label: "총투자금의 5배 이상 (5x)", probability: probabilityAtOrAbove(probabilityBase * 5) },
+    { label: "총투자금의 10배 이상 (10x)", probability: probabilityAtOrAbove(probabilityBase * 10) },
+    { label: "총투자금의 100배 이상 (100x)", probability: probabilityAtOrAbove(probabilityBase * 100) }
   ];
 
   // Post final results
@@ -377,6 +385,8 @@ self.onmessage = function(e) {
       percentileTrajectoriesReal,
       summaryPercentiles,
       probabilities,
+      totalInvested,
+      crashSettings,
       modelUsed: useBootstrap ? 'bootstrap' : 'statistical'
     }
   });
