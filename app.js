@@ -10,11 +10,8 @@ const DEFAULT_PORTFOLIO = [
   { ticker: 'SOXL', name: 'Direxion Daily Semiconductor Bull 3x', allocation: 10 },
   { ticker: 'BTC-USD', name: 'Bitcoin USD', allocation: 15 },
   { ticker: 'AAPL', name: 'Apple Inc.', allocation: 5 },
-  { ticker: 'AAPU', name: 'Direxion Daily AAPL Bull 2X Shares', allocation: 0 },
   { ticker: 'TSLA', name: 'Tesla Inc.', allocation: 5 },
-  { ticker: 'TSLL', name: 'Direxion Daily TSLA Bull 2X Shares', allocation: 0 },
-  { ticker: 'SCHD', name: 'Schwab US Dividend Equity ETF', allocation: 10 },
-  { ticker: 'JEPQ', name: 'JPMorgan Nasdaq Equity Premium ETF', allocation: 5 }
+  { ticker: 'SCHD', name: 'Schwab US Dividend Equity ETF', allocation: 15 }
 ];
 
 // Approximate display-only FX rate for KRW summaries.
