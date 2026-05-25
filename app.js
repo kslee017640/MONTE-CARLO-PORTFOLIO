@@ -1579,8 +1579,8 @@ function updateProjectionChart() {
           min: yBounds.min,
           max: yBounds.max,
           title: {
-            display: true,
-            text: inflationAdjusted ? '실질 자산 가치 ($)' : '명목 자산 가치 ($)',
+            display: false,
+            text: '',
             color: '#94a3b8'
           },
           grid: { color: 'rgba(255, 255, 255, 0.05)' },
