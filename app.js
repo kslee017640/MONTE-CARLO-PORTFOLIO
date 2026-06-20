@@ -16,6 +16,8 @@ const DEFAULT_PORTFOLIO = [
 
 // Approximate display-only FX rate for KRW summaries.
 const USD_KRW_RATE = 1520;
+const HISTORICAL_CACHE_PREFIX = 'ks-mc-history';
+const HISTORICAL_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 // App State
 let state = {
@@ -124,7 +126,6 @@ window.addEventListener('DOMContentLoaded', () => {
   renderTickers();
   updateCrashTickerOptions();
   updateAllocationTotal();
-  initAllocationPieChart();
   
   // Wire events
   elements.btnAddTicker.addEventListener('click', addTicker);
@@ -166,6 +167,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
   handleCashflowTypeChange();
   updateCrashOptionState();
+  initAllocationPieChart();
+
+  if (location.protocol === 'file:') {
+    elements.statusDot.className = 'status-dot error';
+    elements.statusText.innerText = '파일 직접 실행(file://) 상태입니다. 데이터 수집은 GitHub Pages 같은 https 주소에서 가장 안정적으로 동작합니다.';
+  }
 });
 
 function moveCalibrationSectionIntoStepOne() {
@@ -302,12 +309,14 @@ function renderTickers() {
     const coverage = state.historicalCoverage[asset.ticker];
     const displaySymbolBase = asset.ticker.endsWith('-USD') ? asset.ticker.replace('-USD', '') : asset.ticker;
     const displaySymbol = displaySymbolBase + (coverage?.insufficient ? '*' : '');
-    const coverageTitle = coverage?.insufficient ? ` / 요청 기간보다 짧음: 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '';
+    const coverageTitle = coverage?.synthetic
+      ? ` / 실제 데이터 실패로 ${coverage.sourceTicker} ${coverage.leverage}x 합성 데이터 사용`
+      : (coverage?.insufficient ? ` / 요청 기간보다 짧음: 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '');
     
     item.innerHTML = `
       <div style="display:flex; flex-direction:column; min-width:0;">
         <span class="ticker-symbol">${displaySymbol}</span>
-        <span style="font-size:0.75rem; color:var(--color-text-secondary); overflow:hidden; line-height:1.35;" title="${asset.name}${coverageTitle}">${asset.name}${coverage?.insufficient ? `<span class="coverage-note">최대 ${coverage.availableYears.toFixed(1)}년 데이터</span>` : ''}</span>
+        <span style="font-size:0.75rem; color:var(--color-text-secondary); overflow:hidden; line-height:1.35;" title="${asset.name}${coverageTitle}">${asset.name}${coverage?.synthetic ? `<span class="coverage-note">${coverage.sourceTicker} ${coverage.leverage}x 합성 데이터</span>` : ''}${coverage?.insufficient ? `<span class="coverage-note">최대 ${coverage.availableYears.toFixed(1)}년 데이터</span>` : ''}</span>
       </div>
       <div class="input-container input-with-suffix">
         <input type="number" class="ticker-weight-input" data-index="${index}" value="${asset.allocation}" min="0" max="100" step="1">
@@ -410,6 +419,10 @@ function updateAllocationTotal() {
 
 // Initialize Allocation Chart (Pie)
 function initAllocationPieChart() {
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js가 로드되지 않아 비중 차트는 건너뜁니다. 1단계 데이터 추출은 계속 사용할 수 있습니다.');
+    return;
+  }
   const ctx = document.getElementById('allocationPieChart').getContext('2d');
   allocationPieChart = new Chart(ctx, {
     type: 'doughnut',
@@ -474,6 +487,172 @@ function showLoading(show, title = '', subtitle = '', isProgress = false) {
   }
 }
 
+function fetchWithTimeout(url, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { signal: controller.signal })
+    .finally(() => clearTimeout(timeoutId));
+}
+
+function getHistoricalCacheKey(ticker, period) {
+  return `${HISTORICAL_CACHE_PREFIX}:${ticker}:${period}`;
+}
+
+function saveHistoricalCache(ticker, period, data) {
+  try {
+    const cacheData = {
+      savedAt: Date.now(),
+      data: {
+        ...data,
+        ohlc: [] // Keep cache compact; historical prices are enough for calibration.
+      }
+    };
+    localStorage.setItem(getHistoricalCacheKey(ticker, period), JSON.stringify(cacheData));
+  } catch (error) {
+    console.warn(`Cache save skipped for ${ticker}: ${error.message}`);
+  }
+}
+
+function loadHistoricalCache(ticker, period) {
+  try {
+    const raw = localStorage.getItem(getHistoricalCacheKey(ticker, period));
+    if (!raw) return null;
+    const cacheData = JSON.parse(raw);
+    if (!cacheData?.data || Date.now() - cacheData.savedAt > HISTORICAL_CACHE_MAX_AGE_MS) return null;
+    return {
+      ...cacheData.data,
+      shortName: `${cacheData.data.shortName || ticker} (캐시)`
+    };
+  } catch (error) {
+    console.warn(`Cache load skipped for ${ticker}: ${error.message}`);
+    return null;
+  }
+}
+
+function buildHistoricalResult(ticker, rawRows, requestedYears, shortName) {
+  if (rawRows.length === 0) throw new Error("No valid closing prices found");
+
+  rawRows.sort((a, b) => a.date.localeCompare(b.date));
+  const firstDate = rawRows[0].date;
+  const lastDate = rawRows[rawRows.length - 1].date;
+  const availableYears = Math.max(0, (new Date(lastDate) - new Date(firstDate)) / (1000 * 60 * 60 * 24 * 365.25));
+  const insufficient = requestedYears !== null && availableYears + 0.05 < requestedYears;
+  const cutoffDate = requestedYears && !insufficient
+    ? new Date(new Date(lastDate).setFullYear(new Date(lastDate).getFullYear() - requestedYears)).toISOString().split('T')[0]
+    : null;
+  const filteredRows = cutoffDate ? rawRows.filter(row => row.date >= cutoffDate) : rawRows;
+
+  return {
+    ticker,
+    dates: filteredRows.map(row => row.date),
+    prices: filteredRows.map(row => row.price),
+    ohlc: filteredRows.filter(row => row.ohlc).map(row => row.ohlc),
+    shortName,
+    coverage: {
+      availableYears,
+      requestedYears,
+      insufficient,
+      firstDate,
+      lastDate
+    }
+  };
+}
+
+function getStooqSymbol(ticker) {
+  const symbol = ticker.trim().toUpperCase();
+  if (symbol === 'BTC' || symbol === 'BTC-USD') return 'btcusd';
+  if (symbol.endsWith('-USD')) return symbol.replace('-USD', '').toLowerCase();
+  return `${symbol.toLowerCase().replace('.', '-')}.us`;
+}
+
+function parseStooqCsv(csvText) {
+  const lines = csvText.trim().split(/\r?\n/);
+  if (lines.length < 2 || /no data/i.test(csvText)) {
+    throw new Error('No Stooq data');
+  }
+
+  const rawRows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const [date, open, high, low, close] = lines[i].split(',');
+    const closeValue = parseFloat(close);
+    if (!date || !Number.isFinite(closeValue)) continue;
+
+    const o = parseFloat(open);
+    const h = parseFloat(high);
+    const l = parseFloat(low);
+    rawRows.push({
+      date,
+      price: closeValue,
+      ohlc: Number.isFinite(o) && Number.isFinite(h) && Number.isFinite(l)
+        ? { time: date, open: o, high: h, low: l, close: closeValue }
+        : null
+    });
+  }
+  return rawRows;
+}
+
+async function fetchTickerHistoricalDataFromStooq(ticker, period, requestedYears) {
+  const stooqSymbol = getStooqSymbol(ticker);
+  const targetUrl = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSymbol)}&i=d`;
+  const loaders = [
+    url => url,
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+  ];
+
+  let lastError = null;
+  for (let i = 0; i < loaders.length; i++) {
+    try {
+      const response = await fetchWithTimeout(loaders[i](targetUrl));
+      if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+      const rawRows = parseStooqCsv(await response.text());
+      return buildHistoricalResult(ticker, rawRows, requestedYears, `${ticker.replace('-USD', '')} (Stooq)`);
+    } catch (e) {
+      lastError = e;
+      const message = e.name === 'AbortError' ? '요청 시간 초과' : e.message;
+      console.warn(`Stooq loader ${i + 1} failed for ${ticker}: ${message}`);
+    }
+  }
+
+  const finalMessage = lastError?.name === 'AbortError' ? '요청 시간 초과' : (lastError?.message || 'Unknown Stooq error');
+  throw new Error(finalMessage);
+}
+
+function createSyntheticLeveragedResult(ticker, fetchedResults) {
+  const map = {
+    QLD: { base: 'QQQ', multiplier: 2 },
+    TQQQ: { base: 'QQQ', multiplier: 3 },
+    USD: { base: 'SOXX', multiplier: 2 },
+    SOXL: { base: 'SOXX', multiplier: 3 }
+  };
+  const config = map[ticker.toUpperCase()];
+  if (!config) return null;
+
+  const baseResult = fetchedResults.find(result => result.ticker === config.base);
+  if (!baseResult || baseResult.prices.length < 2) return null;
+
+  const syntheticPrices = [100];
+  for (let i = 1; i < baseResult.prices.length; i++) {
+    const dailyReturn = (baseResult.prices[i] / baseResult.prices[i - 1]) - 1;
+    const leveragedReturn = Math.max(-0.95, dailyReturn * config.multiplier);
+    syntheticPrices.push(syntheticPrices[syntheticPrices.length - 1] * (1 + leveragedReturn));
+  }
+
+  return {
+    ticker,
+    dates: [...baseResult.dates],
+    prices: syntheticPrices,
+    ohlc: [],
+    shortName: `${ticker} 합성 데이터 (${config.base} ${config.multiplier}x)`,
+    coverage: {
+      ...baseResult.coverage,
+      synthetic: true,
+      sourceTicker: config.base,
+      leverage: config.multiplier
+    }
+  };
+}
+
 // Fetch historical data for a ticker using CORS proxy (includes OHLC for candlestick charts)
 async function fetchTickerHistoricalData(ticker, period) {
   // Translate ticker names
@@ -495,7 +674,7 @@ async function fetchTickerHistoricalData(ticker, period) {
   for (let i = 0; i < proxies.length; i++) {
     try {
       const proxiedUrl = proxies[i](targetUrl);
-      const response = await fetch(proxiedUrl);
+      const response = await fetchWithTimeout(proxiedUrl);
       if (!response.ok) throw new Error(`HTTP error ${response.status}`);
       const data = await response.json();
       
@@ -532,46 +711,33 @@ async function fetchTickerHistoricalData(ticker, period) {
         }
       }
       
-      if (rawRows.length === 0) throw new Error("No valid closing prices found");
-
-      rawRows.sort((a, b) => a.date.localeCompare(b.date));
-      const firstDate = rawRows[0].date;
-      const lastDate = rawRows[rawRows.length - 1].date;
-      const availableYears = Math.max(0, (new Date(lastDate) - new Date(firstDate)) / (1000 * 60 * 60 * 24 * 365.25));
-      const insufficient = requestedYears !== null && availableYears + 0.05 < requestedYears;
-      const cutoffDate = requestedYears && !insufficient
-        ? new Date(new Date(lastDate).setFullYear(new Date(lastDate).getFullYear() - requestedYears)).toISOString().split('T')[0]
-        : null;
-      const filteredRows = cutoffDate ? rawRows.filter(row => row.date >= cutoffDate) : rawRows;
-
-      const dates = filteredRows.map(row => row.date);
-      const prices = filteredRows.map(row => row.price);
-      const ohlc = filteredRows.filter(row => row.ohlc).map(row => row.ohlc);
-      
       // Get shortName from metadata
       const shortName = chart.meta?.shortName || ticker;
-      
-      return {
-        ticker,
-        dates,
-        prices,
-        ohlc,
-        shortName,
-        coverage: {
-          availableYears,
-          requestedYears,
-          insufficient,
-          firstDate,
-          lastDate
-        }
-      };
+      const result = buildHistoricalResult(ticker, rawRows, requestedYears, shortName);
+      saveHistoricalCache(ticker, period, result);
+      return result;
     } catch (e) {
-      console.warn(`Proxy ${i} failed for ${ticker}: ${e.message}`);
+      const message = e.name === 'AbortError' ? '요청 시간 초과' : e.message;
+      console.warn(`Proxy ${i + 1} failed for ${ticker}: ${message}`);
       lastError = e;
     }
   }
-  
-  throw new Error(`Failed to fetch ${ticker}: ${lastError ? lastError.message : 'Unknown network error'}`);
+
+  try {
+    console.warn(`Yahoo fetch failed for ${ticker}. Trying Stooq fallback...`);
+    const fallbackData = await fetchTickerHistoricalDataFromStooq(ticker, period, requestedYears);
+    saveHistoricalCache(ticker, period, fallbackData);
+    return fallbackData;
+  } catch (fallbackError) {
+    const cachedData = loadHistoricalCache(ticker, period);
+    if (cachedData) {
+      console.warn(`Using cached historical data for ${ticker}.`);
+      return cachedData;
+    }
+    const yahooMessage = lastError?.name === 'AbortError' ? '요청 시간 초과' : (lastError?.message || 'Unknown network error');
+    const fallbackMessage = fallbackError?.name === 'AbortError' ? '요청 시간 초과' : (fallbackError?.message || 'Unknown fallback error');
+    throw new Error(`Yahoo 실패: ${yahooMessage} / Stooq 실패: ${fallbackMessage} / 캐시 없음`);
+  }
 }
 
 // Step 1: Calibrate Parameters from Historical Data
@@ -588,22 +754,36 @@ async function calibrateParameters() {
   }
   
   const period = elements.historicalPeriod.value;
-  showLoading(true, "차트 데이터 수집 중...", "각 자산별 실제 과거 종가를 다운로드 중입니다...");
+  showLoading(true, "차트 데이터 수집 중...", "각 자산별 실제 과거 종가를 다운로드 중입니다...", true);
   
   elements.statusDot.className = 'status-dot loading';
   elements.statusText.innerText = '야후 파이낸스 데이터 로딩 중...';
+  elements.btnCalibrate.disabled = true;
   
   try {
     const fetchedResults = [];
-    for (const asset of state.portfolio) {
+    for (let i = 0; i < state.portfolio.length; i++) {
+      const asset = state.portfolio[i];
+      const progress = Math.round((i / state.portfolio.length) * 100);
+      elements.progressBarFill.style.width = `${progress}%`;
       elements.statusText.innerText = `${asset.ticker} 다운로드 중...`;
-      const data = await fetchTickerHistoricalData(asset.ticker, period);
+      elements.loadingSubtext.innerText = `${i + 1}/${state.portfolio.length}: ${asset.ticker} 과거 차트 데이터 요청 중입니다. Yahoo가 실패하면 Stooq로 자동 우회합니다.`;
+      let data;
+      try {
+        data = await fetchTickerHistoricalData(asset.ticker, period);
+      } catch (fetchError) {
+        data = createSyntheticLeveragedResult(asset.ticker, fetchedResults);
+        if (!data) throw fetchError;
+        console.warn(`${asset.ticker} data fetch failed. Using synthetic leveraged data instead.`);
+        elements.loadingSubtext.innerText = `${asset.ticker} 실제 데이터 수집 실패. 기초자산 기반 합성 데이터로 대체했습니다.`;
+      }
       fetchedResults.push(data);
       // update company name if generic
       if (asset.name.includes("Stock") || asset.name.includes("Cryptocurrency")) {
         asset.name = data.shortName;
       }
     }
+    elements.progressBarFill.style.width = '100%';
     
     // Store in state
     state.historicalPrices = {};
@@ -655,6 +835,8 @@ async function calibrateParameters() {
     // Automatically toggle manual mode on fail
     state.manualModeActive = false;
     toggleManualEditor();
+  } finally {
+    elements.btnCalibrate.disabled = false;
   }
 }
 
@@ -1019,7 +1201,9 @@ function renderParametersTable() {
     const row = document.createElement('tr');
     
     const coverage = state.historicalCoverage[asset.ticker];
-    const coverageNote = coverage?.insufficient ? ` * 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '';
+    const coverageNote = coverage?.synthetic
+      ? ` * ${coverage.sourceTicker} ${coverage.leverage}x 합성 데이터`
+      : (coverage?.insufficient ? ` * 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '');
     const displaySymbol = asset.ticker.replace('-USD', '') + (coverage?.insufficient ? '*' : '');
     const cagrFormatted = (params.cagr * 100).toFixed(2) + '%';
     const volFormatted = (params.volatility * 100).toFixed(2) + '%';
@@ -1679,6 +1863,10 @@ function renderProbabilities() {
 function updateProjectionChart() {
   const results = state.simulationResults;
   if (!results) return;
+  if (typeof Chart === 'undefined') {
+    elements.statusText.innerText = 'Chart.js가 로드되지 않아 결과 그래프를 표시할 수 없습니다. 인터넷 연결 또는 CDN 차단 여부를 확인해주세요.';
+    return;
+  }
   
   const logScale = elements.chkLogScale.checked;
   const inflationAdjusted = elements.chkInflationAdjusted.checked;
@@ -1909,6 +2097,10 @@ let modalCandleSeriesInstance = null;
 
 // Display Interactive TradingView Candlestick Chart Popup
 function showCandlestickChart(ticker) {
+  if (typeof LightweightCharts === 'undefined') {
+    alert('캔들 차트 라이브러리가 로드되지 않았습니다. 인터넷 연결 또는 CDN 차단 여부를 확인해주세요.');
+    return;
+  }
   const data = state.historicalPrices[ticker];
   if (!data || !data.ohlc || data.ohlc.length === 0) {
     alert(`[${ticker.replace('-USD', '')}] 해당 분석 기간의 실제 캔들 데이터가 존재하지 않거나 수동 입력 모드입니다.`);
