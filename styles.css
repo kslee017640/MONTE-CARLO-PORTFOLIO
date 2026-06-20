@@ -38,6 +38,35 @@
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+:root[data-theme="light"] {
+  --bg-main: #f8fbff;
+  --bg-surface: rgba(255, 255, 255, 0.82);
+  --bg-surface-solid: #ffffff;
+  --bg-panel: rgba(255, 255, 255, 0.78);
+  --bg-panel-hover: rgba(255, 255, 255, 0.92);
+  --border-light: rgba(96, 116, 150, 0.16);
+  --border-focus: rgba(45, 171, 196, 0.42);
+
+  --color-text-primary: #172033;
+  --color-text-secondary: #53627a;
+  --color-text-muted: #7b879b;
+
+  --accent-cyan: #2babc4;
+  --accent-cyan-glow: rgba(97, 214, 226, 0.26);
+  --accent-emerald: #43b88d;
+  --accent-emerald-glow: rgba(67, 184, 141, 0.18);
+  --accent-indigo: #7c8cf8;
+  --accent-indigo-glow: rgba(124, 140, 248, 0.20);
+  --accent-purple: #b58cf6;
+  --accent-purple-glow: rgba(181, 140, 246, 0.18);
+  --accent-rose: #ee7890;
+  --accent-rose-glow: rgba(238, 120, 144, 0.18);
+  --accent-amber: #e8ae4f;
+  --accent-amber-glow: rgba(232, 174, 79, 0.18);
+
+  --shadow-premium: 0 18px 46px -22px rgba(65, 88, 130, 0.42), 0 4px 18px rgba(123, 135, 155, 0.12);
+}
+
 /* Reset & Base Styles */
 * {
   box-sizing: border-box;
@@ -56,6 +85,13 @@ body {
   background-attachment: fixed;
 }
 
+:root[data-theme="light"] body {
+  background-image:
+    radial-gradient(circle at 12% 6%, rgba(196, 232, 255, 0.72), transparent 30%),
+    radial-gradient(circle at 88% 14%, rgba(226, 213, 255, 0.58), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #eef7fb 52%, #f7f2ff 100%);
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -70,6 +106,14 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(96, 116, 150, 0.22);
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(96, 116, 150, 0.34);
 }
 
 /* Header & Container */
@@ -102,6 +146,12 @@ header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+:root[data-theme="light"] .logo-section h1 {
+  background: linear-gradient(135deg, #1d2940 0%, #4f7eb7 52%, #2babc4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .logo-section p {
@@ -168,6 +218,15 @@ header {
 .header-actions {
   display: flex;
   gap: 0.75rem;
+}
+
+.theme-toggle-btn {
+  min-width: 98px;
+}
+
+.theme-toggle-btn span:first-child {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 /* Grid Layout */
@@ -530,6 +589,76 @@ input:checked + .slider:before {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+:root[data-theme="light"] .panel {
+  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(118, 139, 178, 0.18);
+}
+
+:root[data-theme="light"] .panel:hover {
+  border-color: rgba(84, 111, 156, 0.26);
+}
+
+:root[data-theme="light"] input[type="text"],
+:root[data-theme="light"] input[type="number"],
+:root[data-theme="light"] select {
+  background-color: rgba(255, 255, 255, 0.86);
+  border-color: rgba(112, 132, 168, 0.22);
+  color: var(--color-text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+:root[data-theme="light"] input:focus,
+:root[data-theme="light"] select:focus {
+  background: #ffffff;
+  border-color: rgba(43, 171, 196, 0.56);
+  box-shadow: 0 0 0 4px rgba(154, 224, 232, 0.26), 0 10px 24px -18px rgba(60, 88, 128, 0.45);
+}
+
+:root[data-theme="light"] .ticker-item,
+:root[data-theme="light"] .allocation-total-bar,
+:root[data-theme="light"] .manual-data-editor,
+:root[data-theme="light"] .chart-scroll-frame,
+:root[data-theme="light"] .chart-wrapper,
+:root[data-theme="light"] .modal-chart-container,
+:root[data-theme="light"] .calibration-stat-card {
+  background: rgba(255, 255, 255, 0.70);
+  border-color: rgba(112, 132, 168, 0.16);
+  box-shadow: 0 12px 30px -24px rgba(58, 82, 122, 0.34);
+}
+
+:root[data-theme="light"] .ticker-item:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+:root[data-theme="light"] .btn-secondary {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(112, 132, 168, 0.24);
+  color: var(--color-text-primary);
+  box-shadow: 0 10px 24px -18px rgba(58, 82, 122, 0.36);
+}
+
+:root[data-theme="light"] .btn-secondary:hover {
+  background: #ffffff;
+  border-color: rgba(43, 171, 196, 0.34);
+}
+
+:root[data-theme="light"] .btn-primary {
+  background: linear-gradient(135deg, #63c7d9 0%, #8d9dfd 100%);
+  box-shadow: 0 12px 28px -16px rgba(99, 151, 220, 0.62);
+}
+
+:root[data-theme="light"] .help-text {
+  background: rgba(235, 250, 253, 0.82);
+  border-color: rgba(89, 199, 214, 0.30);
+}
+
+:root[data-theme="light"] .help-popover,
+:root[data-theme="light"] .modal-content {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(112, 132, 168, 0.22);
+  box-shadow: 0 24px 56px -28px rgba(47, 70, 110, 0.52);
+}
+
 /* Alert Notification Panel */
 .alert-card {
   padding: 1rem;
@@ -664,6 +793,12 @@ tr:hover td {
   color: var(--accent-cyan);
 }
 
+:root[data-theme="light"] .heatmap-axis-corner,
+:root[data-theme="light"] .heatmap-axis-label {
+  background: rgba(242, 248, 255, 0.96);
+  color: var(--color-text-secondary);
+}
+
 .heatmap-cell {
   display: flex;
   align-items: center;
@@ -730,6 +865,10 @@ tr:hover td {
   padding: 1rem 0.15rem 1rem 0.35rem;
 }
 
+:root[data-theme="light"] .chart-y-axis-fixed {
+  background: #f3f8ff;
+}
+
 .chart-x-scroll {
   overflow-x: auto;
   overflow-y: hidden;
@@ -794,6 +933,10 @@ tr:hover td {
   opacity: 0;
   pointer-events: none;
   transition: var(--transition-smooth);
+}
+
+:root[data-theme="light"] .loading-overlay {
+  background: rgba(248, 251, 255, 0.82);
 }
 
 .loading-overlay.active {
@@ -1018,6 +1161,10 @@ tr:hover td {
   line-height: 1.5;
 }
 
+:root[data-theme="light"] .metadata-info {
+  color: #69758b;
+}
+
 .model-calibration-panel {
   margin-top: 1.5rem;
   border-top: 1px solid var(--border-light);
@@ -1084,6 +1231,11 @@ tr:hover td {
   max-width: 190px;
   background: #101827;
   box-shadow: 1px 0 0 var(--border-light);
+}
+
+:root[data-theme="light"] .summary-table-scroll th:first-child,
+:root[data-theme="light"] .summary-table-scroll td:first-child {
+  background: #f4f8ff;
 }
 
 .summary-table-scroll th:first-child {

@@ -76,6 +76,10 @@ const elements = {
   
   btnReset: document.getElementById('btnReset'),
   btnLoadDefaults: document.getElementById('btnLoadDefaults'),
+  btnThemeToggle: document.getElementById('btnThemeToggle'),
+  themeToggleIcon: document.getElementById('themeToggleIcon'),
+  themeToggleText: document.getElementById('themeToggleText'),
+  themeColorMeta: document.getElementById('themeColorMeta'),
   btnCalibrate: document.getElementById('btnCalibrate'),
   btnRunSimulation: document.getElementById('btnRunSimulation'),
   
@@ -134,6 +138,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   elements.btnLoadDefaults.addEventListener('click', loadDefaults);
   elements.btnReset.addEventListener('click', resetPortfolio);
+  elements.btnThemeToggle?.addEventListener('click', toggleTheme);
   elements.btnCalibrate.addEventListener('click', calibrateParameters);
   elements.btnRunSimulation.addEventListener('click', runMonteCarlo);
   
@@ -167,6 +172,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   handleCashflowTypeChange();
   updateCrashOptionState();
+  applyTheme(getSavedTheme());
   initAllocationPieChart();
 
   if (location.protocol === 'file:') {
@@ -174,6 +180,45 @@ window.addEventListener('DOMContentLoaded', () => {
     elements.statusText.innerText = '파일 직접 실행(file://) 상태입니다. 데이터 수집은 GitHub Pages 같은 https 주소에서 가장 안정적으로 동작합니다.';
   }
 });
+
+function getSavedTheme() {
+  try {
+    const saved = localStorage.getItem('ks-mc-theme');
+    return saved === 'light' ? 'light' : 'dark';
+  } catch (error) {
+    return 'dark';
+  }
+}
+
+function applyTheme(theme) {
+  const normalized = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', normalized);
+  try {
+    localStorage.setItem('ks-mc-theme', normalized);
+  } catch (error) {
+    console.warn(`Theme preference could not be saved: ${error.message}`);
+  }
+  if (elements.themeToggleIcon) {
+    elements.themeToggleIcon.textContent = normalized === 'light' ? '☼' : '☾';
+  }
+  if (elements.themeToggleText) {
+    elements.themeToggleText.textContent = normalized === 'light' ? 'Light' : 'Dark';
+  }
+  if (elements.themeColorMeta) {
+    elements.themeColorMeta.setAttribute('content', normalized === 'light' ? '#f8fbff' : '#070913');
+  }
+  if (allocationPieChart) allocationPieChart.update();
+  if (state.simulationResults) updateProjectionChart();
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  applyTheme(current === 'light' ? 'dark' : 'light');
+}
+
+function getCssVar(name, fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
 
 function moveCalibrationSectionIntoStepOne() {
   if (elements.calibrationResultSlot && elements.sectionCalibration) {
@@ -423,6 +468,7 @@ function initAllocationPieChart() {
     console.warn('Chart.js가 로드되지 않아 비중 차트는 건너뜁니다. 1단계 데이터 추출은 계속 사용할 수 있습니다.');
     return;
   }
+  const chartBorderColor = document.documentElement.getAttribute('data-theme') === 'light' ? '#ffffff' : '#1e293b';
   const ctx = document.getElementById('allocationPieChart').getContext('2d');
   allocationPieChart = new Chart(ctx, {
     type: 'doughnut',
@@ -435,7 +481,7 @@ function initAllocationPieChart() {
           '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8b5cf6', '#f97316'
         ],
         borderWidth: 1,
-        borderColor: '#1e293b'
+        borderColor: chartBorderColor
       }]
     },
     options: {
@@ -464,9 +510,11 @@ function updateAllocationPieChart() {
   
   const labels = state.portfolio.map(a => a.ticker.replace('-USD', ''));
   const data = state.portfolio.map(a => a.allocation);
+  const chartBorderColor = document.documentElement.getAttribute('data-theme') === 'light' ? '#ffffff' : '#1e293b';
   
   allocationPieChart.data.labels = labels;
   allocationPieChart.data.datasets[0].data = data;
+  allocationPieChart.data.datasets[0].borderColor = chartBorderColor;
   allocationPieChart.update();
 }
 
@@ -1872,6 +1920,11 @@ function updateProjectionChart() {
   const logScale = elements.chkLogScale.checked;
   const inflationAdjusted = elements.chkInflationAdjusted.checked;
   const years = parseInt(elements.simulationPeriod.value);
+  const chartTextColor = getCssVar('--color-text-secondary', '#94a3b8');
+  const chartLegendColor = getCssVar('--color-text-primary', '#f8fafc');
+  const chartGridColor = document.documentElement.getAttribute('data-theme') === 'light'
+    ? 'rgba(88, 110, 150, 0.12)'
+    : 'rgba(255, 255, 255, 0.05)';
   
   // Pick dataset based on toggle
   const trajectoryData = inflationAdjusted ? results.percentileTrajectoriesReal : results.percentileTrajectoriesNominal;
@@ -1927,9 +1980,9 @@ function updateProjectionChart() {
           title: {
             display: true,
             text: inflationAdjusted ? '실질 자산 가치 (Inflation Adjusted, $)' : '명목 자산 가치 (Nominal Portfolio Value, $)',
-            color: '#94a3b8'
+            color: chartTextColor
           },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          grid: { color: chartGridColor },
           ticks: {
             display: false,
             callback: function(value) {
@@ -1941,16 +1994,16 @@ function updateProjectionChart() {
           title: {
             display: true,
             text: '경과 년수 (Years)',
-            color: '#94a3b8'
+            color: chartTextColor
           },
           grid: { display: false },
-          ticks: { color: '#94a3b8' }
+          ticks: { color: chartTextColor }
         }
       },
       plugins: {
         legend: {
           position: 'top',
-          labels: { color: '#f8fafc', font: { family: 'Plus Jakarta Sans' } }
+          labels: { color: chartLegendColor, font: { family: 'Plus Jakarta Sans' } }
         },
         tooltip: {
           callbacks: {
@@ -1992,11 +2045,11 @@ function updateProjectionChart() {
           title: {
             display: false,
             text: '',
-            color: '#94a3b8'
+            color: chartTextColor
           },
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          grid: { color: chartGridColor },
           ticks: {
-            color: '#94a3b8',
+            color: chartTextColor,
             callback: value => fmtAxisCompact(value)
           }
         },
