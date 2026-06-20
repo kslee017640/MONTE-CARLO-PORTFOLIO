@@ -841,11 +841,23 @@ tr:hover td {
 }
 
 :root[data-theme="light"] .probability-panel h3 {
-  color: #075f73 !important;
+  color: #111827 !important;
 }
 
 :root[data-theme="light"] .probability-panel p {
-  color: #5d6573 !important;
+  color: #374151 !important;
+}
+
+:root[data-theme="light"] .charts-grid > .panel {
+  background: rgba(255, 253, 248, 0.96) !important;
+  color: #111827;
+}
+
+:root[data-theme="light"] .charts-grid > .panel h3,
+:root[data-theme="light"] .charts-grid > .panel p,
+:root[data-theme="light"] .charts-grid > .panel span,
+:root[data-theme="light"] .charts-grid > .panel strong {
+  color: #111827 !important;
 }
 
 @media (max-width: 1024px) {
