@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Monte Carlo">
   <!-- Tailwind is avoided as per guidelines; custom stylesheet used -->
-  <link rel="stylesheet" href="styles.css?v=2.9">
+  <link rel="stylesheet" href="styles.css?v=3.0">
   <script>
     if (location.protocol !== 'file:') {
       document.write('<link rel="manifest" href="manifest.webmanifest">');
@@ -49,7 +49,7 @@
         <h1>Monte Carlo Portfolio Simulator</h1>
         <p>과거 데이터 기반 자산별 모수 추출 및 상관관계 반영 다차원 가격 예측 시뮬레이션</p>
         <div class="app-meta">
-          <span>V2.9</span>
+          <span>V3.0</span>
           <span>Designed by KS with Codex</span>
         </div>
       </div>
@@ -494,7 +494,7 @@
             </div>
 
             <!-- Side Distribution Stats -->
-            <div class="panel" style="background: rgba(15, 23, 42, 0.4); margin: 0; padding: 1.25rem;">
+            <div class="panel probability-panel">
               <h3 style="font-size: 0.9rem; font-family: var(--font-display); font-weight: 700; color: var(--accent-cyan); margin-bottom: 0.75rem;">
                 최종 자산 도달 확률
               </h3>
@@ -578,6 +578,6 @@
   </div>
 
   <!-- Javascript Logic -->
-  <script src="app.js?v=2.9"></script>
+  <script src="app.js?v=3.0"></script>
 </body>
 </html>
