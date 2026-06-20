@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Monte Carlo">
   <!-- Tailwind is avoided as per guidelines; custom stylesheet used -->
-  <link rel="stylesheet" href="styles.css?v=2.7">
+  <link rel="stylesheet" href="styles.css?v=2.8">
   <script>
     if (location.protocol !== 'file:') {
       document.write('<link rel="manifest" href="manifest.webmanifest">');
@@ -41,7 +41,7 @@
         <h1>Monte Carlo Portfolio Simulator</h1>
         <p>과거 데이터 기반 자산별 모수 추출 및 상관관계 반영 다차원 가격 예측 시뮬레이션</p>
         <div class="app-meta">
-          <span>V2.7</span>
+          <span>V2.8</span>
           <span>Designed by KS with Codex</span>
         </div>
       </div>
@@ -102,6 +102,7 @@
               <option value="20y">최근 20년</option>
               <option value="max">전체 기간 (Max)</option>
             </select>
+            <p class="field-hint">선택 기간보다 이력이 짧은 티커는 실패 처리하지 않고 해당 티커의 가능한 전체 기간(Max)으로 자동 분석합니다.</p>
           </div>
 
           <div id="calibrationActionBlock" style="margin-top: 1.25rem; margin-bottom: 1rem;">
@@ -565,6 +566,6 @@
   </div>
 
   <!-- Javascript Logic -->
-  <script src="app.js?v=2.7"></script>
+  <script src="app.js?v=2.8"></script>
 </body>
 </html>

@@ -311,12 +311,12 @@ function renderTickers() {
     const displaySymbol = displaySymbolBase + (coverage?.insufficient ? '*' : '');
     const coverageTitle = coverage?.synthetic
       ? ` / 실제 데이터 실패로 ${coverage.sourceTicker} ${coverage.leverage}x 합성 데이터 사용`
-      : (coverage?.insufficient ? ` / 요청 기간보다 짧음: 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '');
+      : (coverage?.autoMaxApplied ? ` / 요청 기간보다 짧아 자동 Max 적용: 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '');
     
     item.innerHTML = `
       <div style="display:flex; flex-direction:column; min-width:0;">
         <span class="ticker-symbol">${displaySymbol}</span>
-        <span style="font-size:0.75rem; color:var(--color-text-secondary); overflow:hidden; line-height:1.35;" title="${asset.name}${coverageTitle}">${asset.name}${coverage?.synthetic ? `<span class="coverage-note">${coverage.sourceTicker} ${coverage.leverage}x 합성 데이터</span>` : ''}${coverage?.insufficient ? `<span class="coverage-note">최대 ${coverage.availableYears.toFixed(1)}년 데이터</span>` : ''}</span>
+        <span style="font-size:0.75rem; color:var(--color-text-secondary); overflow:hidden; line-height:1.35;" title="${asset.name}${coverageTitle}">${asset.name}${coverage?.synthetic ? `<span class="coverage-note">${coverage.sourceTicker} ${coverage.leverage}x 합성 데이터</span>` : ''}${coverage?.autoMaxApplied ? `<span class="coverage-note">자동 Max 적용: 최대 ${coverage.availableYears.toFixed(1)}년</span>` : ''}</span>
       </div>
       <div class="input-container input-with-suffix">
         <input type="number" class="ticker-weight-input" data-index="${index}" value="${asset.allocation}" min="0" max="100" step="1">
@@ -552,6 +552,7 @@ function buildHistoricalResult(ticker, rawRows, requestedYears, shortName) {
       availableYears,
       requestedYears,
       insufficient,
+      autoMaxApplied: insufficient,
       firstDate,
       lastDate
     }
@@ -1203,7 +1204,7 @@ function renderParametersTable() {
     const coverage = state.historicalCoverage[asset.ticker];
     const coverageNote = coverage?.synthetic
       ? ` * ${coverage.sourceTicker} ${coverage.leverage}x 합성 데이터`
-      : (coverage?.insufficient ? ` * 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '');
+      : (coverage?.autoMaxApplied ? ` * 자동 Max 적용: 최대 ${coverage.availableYears.toFixed(1)}년 데이터` : '');
     const displaySymbol = asset.ticker.replace('-USD', '') + (coverage?.insufficient ? '*' : '');
     const cagrFormatted = (params.cagr * 100).toFixed(2) + '%';
     const volFormatted = (params.volatility * 100).toFixed(2) + '%';
